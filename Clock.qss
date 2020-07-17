@@ -57,8 +57,17 @@ QTabBar::tab {
 	padding-right: 10px;
 	font-weight: bold;
 	font-style: italic;
-	font-size: 8pt;
+	font-size: 16pt;
+	height: 20px;
+	min-width: 125px;
+
 }
+
+/*--	font-weight: bold;
+	font-style: italic;
+	font-size: 18pt;
+	height: 20px;
+	min-width: 50px; --*/
 
 QTabWidget::tab-bar {
 	alignment: left;
@@ -70,7 +79,6 @@ QTabWidget::pane
 	border: 1px solid #666;
 	top: 1px;
 }
-
 
 QTabBar::tab:last
 {
@@ -91,18 +99,15 @@ QTabBar::tab:!selected
 	background-color: #0c0c0d;
 }
 
-
 QTabBar::tab:selected
 {
-	margin-bottom: 0px;
+	margin-bottom: -1px;
 }
-
 
 QTabBar::tab:!selected:hover
 {
 	border-top-color: #b78620;
 }
-
 
 /*-----QPushButton-----*/
 QPushButton
@@ -125,19 +130,21 @@ QPushButton#wicon{
 
 QPushButton#next{
 	background-color: slategray;
-	min-width: 5px;
-	padding: 5px;
-	margin-right: 10px;
+	image: url(:/right.png);
+	min-width: 10px;
+	padding: 0px;
+	margin-right: 5px;
 	margin-left: 10px;
 	border-radius: 2px;
 }
 
 QPushButton#prev{
 	background-color: slategray;
-	min-width: 5px;
-	padding: 5px;
+	image: url(:/left.png);
+	min-width: 10px;
+	padding: 0px;
 	margin-right: 10px;
-	margin-left: 10px;
+	margin-left:  5px;
 	border-radius: 2px;
 }
 
@@ -297,7 +304,7 @@ QDateTimeEdit::down-arrow
 
 
 /*-----QPlainTExtEdit-----*/
-QPlainTextEdit
+QTextEdit
 {
 	background-color: transparent;
 	color : #5CF;
@@ -309,6 +316,11 @@ QPlainTextEdit
 	font-size: 14pt;
 }
 
+QTextEdit#hilo{
+	font-size: 10pt;
+	font-weight: bold;
+	border: 0;
+}
 
 /*-----QMenuBar-----*/
 QMenuBar 

@@ -55,16 +55,19 @@ if __name__ == '__main__':
     parser.add_argument("--debug", "-d", action="count", help="Increase debug level.", default=0)
     parser.add_argument("--style", "-s", type=str, help="Use specified style sheet.", default=None)
     parser.add_argument("--frameless", "-fl", action="store_true", help="Make a frameless window.")
+    parser.add_argument("--web", action="store_true", help="Make get moon from web.")
 
     args = parser.parse_args(sys.argv[1:])
 
-    clock = Clock_widget(args.frameless)
+    if args.debug:
+        print("Debug flag is set to:", args.debug)
 
-    clock.debug = args.debug
+    clock = Clock_widget(args.frameless, web=args.web, debug=args.debug)
 
     file = None
     if args.style is None:
-        file = QFile(":/Clock.qss")
+#        file = QFile(":/Clock.qss")
+        file = QFile("Clock.qss")
     else:
         file = QFile(args.style)
 

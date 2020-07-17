@@ -4,6 +4,7 @@ from datetime import datetime
 from dateutil import tz
 import requests
 import zmq
+import re
 import json
 
 # Note on the Weather.gov JSON.
@@ -12,22 +13,20 @@ import json
 #
 # Example conversion to datetime: datetime.fromisoformat(wjson['properties']['updateTime'])
 #
-from PySide2.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QTextEdit, QPlainTextEdit, QPushButton
+from PySide2.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QTextEdit, QTextEdit, QPushButton
 from PySide2.QtGui import QFont, QColor, QPixmap, QCursor
-from PySide2.QtCore import QFile, Slot, QRect, QCoreApplication, QTimer
-
-from clock_widget import Clock_widget
-import qt_clock_rc
+from PySide2.QtCore import Qt, QObject, QFile, Signal, Slot, QRect, QCoreApplication, QTimer
+from PySide2.QtSvg import QSvgWidget
 
 import signal
+import qt_clock_rc
 
-
-class weather_info_icon(QPushButton):
+class QWeatherInfoIcon(QPushButton):
     """Small helper class for one day weather icon with temperature."""
 
     def __init__(self, idx, parent):
         """Initalize with a position (x,y) for top left corner."""
-        super(weather_info_icon, self).__init__(parent)
+        super(QWeatherInfoIcon, self).__init__(parent)
         self.setObjectName("wicon")
         self.parent = parent
         self.index = idx
@@ -83,23 +82,178 @@ class weather_info_icon(QPushButton):
         self.parent.icon_click(self.index)
 
 
-class QWeather(QMainWindow):
+class QTempMiniPanel:
+    """A small weather panel which uses the information from QWeather to display some information."""
+
+    def __init__(self, pos, qweather, parent=None):
+        """Setup a mini-panel which can be part of the clock page."""
+
+        self.parent = parent
+        self.weather = qweather
+
+        # Weather information mini panel
+        self.inside_temp = QLabel(self.parent)
+        self.inside_temp.setObjectName(u"temp")
+        self.inside_temp.setText(u"xx.x C - xx%")
+        self.inside_temp.setGeometry(QRect(pos[0]+70, pos[1], 261, 31))
+        self.inside_temp.setStyleSheet(u"color: rgba(40,40,40,100)")
+        self.inside_temp.setScaledContents(True)
+        self.label_in = QLabel(self.parent)
+        self.label_in.setObjectName(u"label")
+        self.label_in.setText(QCoreApplication.translate("Clock", u"Inside:", None))
+        self.label_in.setGeometry(QRect(pos[0], pos[1]+10, 58, 16))
+        self.label_in.setStyleSheet(u"color: #005555")
+        self.outside_temp = QLabel(self.parent)
+        self.outside_temp.setObjectName(u"temp")
+        self.outside_temp.setText(u"20.5 C - 36%")
+        self.outside_temp.setGeometry(QRect(pos[0]+70, pos[1]+30, 261, 31))
+        self.outside_temp.setStyleSheet(u"color: rgba(40,40,40,100)")
+        self.outside_temp.setScaledContents(True)
+        self.label_out = QLabel(self.parent)
+        self.label_out.setObjectName(u"label")
+        self.label_out.setText(u"Outside:")
+        self.label_out.setGeometry(QRect(pos[0], pos[1]+40, 58, 16))
+        self.label_out.setStyleSheet(u"color: #005555")
+        self.label_press = QLabel(self.parent)
+        self.label_press.setObjectName(u"label_")
+        self.label_press.setText(u"Pressure:")
+        self.label_press.setGeometry(QRect(pos[0], pos[1]+70, 58, 16))
+        self.label_press.setStyleSheet(u"color: #005555")
+        self.pressure = QLabel(self.parent)
+        self.pressure.setObjectName(u"press")
+        self.pressure.setText(u"1xxx.x mbar")
+        self.pressure.setGeometry(QRect(pos[0]+70, pos[1]+60, 261, 31))
+        self.pressure.setStyleSheet(u"color: rgba(40,40,40,100)")
+        self.pressure.setScaledContents(True)
+
+    @Slot()
+    def update(self):
+        """Update the mini panel."""
+        if self.weather is None:
+            print("ERROR - QWeatherMiniPanel not configured correctly.", type(self.weather))
+            return
+
+        try:
+            self.inside_temp.setText("{:5.2f} C  {:5.1f} %".format(self.weather.temp_data[1],
+                                                                   self.weather.temp_data[3]))
+            QWeather.set_temp_color(self.inside_temp, self.weather.temp_data[1], True,
+                                    not self.weather.temp_data_valid)
+            self.outside_temp.setText("{:5.2f} C  {:5.1f} %".format(self.weather.temp_data[5],
+                                                                    self.weather.temp_data[7]))
+            QWeather.set_temp_color(self.outside_temp, self.weather.temp_data[5], True,
+                                    not self.weather.temp_data_valid)
+            self.pressure.setText("{:7.2f} mbar".format(self.weather.temp_data[2]))
+            QWeather.set_pressure_color(self.pressure, self.weather.temp_data[2], self.weather.temp_data_valid)
+        except Exception as e:
+            print("Exception while updating minipanel.")
+
+class QWeatherIcon(QSvgWidget):
+    """A simple icon for indicating the weather."""
+
+    WEATHER_ICONS = {
+        "skc": ("sunny.svg", "Fair/clear"),
+        "few": ("lightcloud.svg", "A few clouds"),
+        "sct": ("lightcloud.svg", "Partly cloudy"),
+        "bkn": ("cloud.svg", "Mostly cloudy"),
+        "ovc": ("cloud.svg", "Overcast"),
+        "wind_skc": ("wind.svg", "Fair/clear and windy"),
+        "wind_few": ("wind.svg", "A few clouds and windy"),
+        "wind_sct": ("windcloud.svg", "Partly cloudy and windy"),
+        "wind_bkn": ("windcloud.svg", "Mostly cloudy and windy"),
+        "wind_ovc": ("windcloud.svg", "Overcast and windy"),
+        "snow": ("snow.svg", "Snow"),
+        "rain_snow": ("snow.svg", "Rain/snow"),
+        "rain_sleet": ("snow.svg", "Rain/sleet"),
+        "snow_sleet": ("rainsnow.svg", "Snow/sleet"),
+        "fzra": ("rainsnow.svg", "Freezing rain"),
+        "rain_fzra": ("rainsnow.svg", "Rain/freezing rain"),
+        "snow_fzra": ("rainsnow.svg", "Freezing rain/snow"),
+        "sleet": ("rainsnow.svg", "Sleet"),
+        "rain": ("rain.svg", "Rain"),
+        "rain_showers": ("rain.svg", "Rain showers (high cloud cover)"),
+        "rain_showers_hi": ("rain.svg", "Rain showers (low cloud cover)"),
+        "tsra": ("thunder.svg", "Thunderstorm (high cloud cover)"),
+        "tsra_sct": ("thunder.svg", "Thunderstorm (medium cloud cover)"),
+        "tsra_hi": ("thunder.svg", "Thunderstorm (low cloud cover)"),
+        "tornado": ("unknown.svg", "Tornado"),
+        "hurricane": ("unknown.svg", "Hurricane conditions"),
+        "tropical_storm": ("unknown.svg", "Tropical storm conditions"),
+        "dust": ("unknown.svg", "Dust"),
+        "smoke": ("unknown.svg", "Smoke"),
+        "haze": ("unknown.svg", "Haze"),
+        "hot": ("unknown.svg", "Hot"),
+        "cold": ("unknown.svg", "Cold"),
+        "blizzard": ("unknown.svg", "Blizzard"),
+        "fog": ("fog.svg", "Fog/mist")
+    }
+
+    def __init__(self, pos, qweather, parent=None):
+        super(QWeatherIcon, self).__init__(parent)
+        self.pos = pos
+        self.weather = qweather
+        self.setGeometry(pos[0], pos[1], 100, 100)
+        self.setStyleSheet("background-color: transparent;");
+
+    @Slot()
+    def update(self):
+        """Update the icon to reflect current conditions."""
+        if self.weather is not None and self.weather.fc is not None:
+            condition = self.weather.fc['periods'][0]['shortForecast']
+            icon_url = self.weather.fc['periods'][0]['icon']
+            # icon_url is something like:
+            # "https://api.weather.gov/icons/land/day/sct?size=medium"
+            print( f"{datetime.now()} - Update icon for: '{condition}'  url: {icon_url} ")
+            match = re.match("https://api\.weather\.gov/icons/(.*)/(.*)/([a-z_]*).*", icon_url)
+            if not match or not match.group(3) in self.WEATHER_ICONS:
+                print("Icon does not exist for match {} condition: {}".format(match.group(3),condition))
+                icon_file = "icons/unknown.svg"
+            else:
+                # TODO: Refine this for night/day icons.
+                icon_name = self.WEATHER_ICONS[match.group(3)][0]
+                icon_file = "icons/" + icon_name
+                # icon_file = "icons/" + QWeatherIcon.WEATHER_ICONS[condition]
+            self.load(icon_file)
+            self.resize(100, 100)
+        else:
+            print("ERROR - QWeatherIcon - weather not initialized.")
+
+
+class QWeather(QWidget, QObject):
     """Simple Weather reporter window."""
     Weather_gov_url = "https://api.weather.gov/points/"
     GEO_Point_Yarmouth = (43.8365, -70.1635)  # Yarmouth
     GEO_Point_Portland_Airport = (43.64222, -70.30444)  # Portland Airport weather station
 
-    def __init__(self, frameless=False):
-        super(QWeather, self).__init__()
+    # Signals we emit.
+    temp_updated = Signal()
+    weather_updated = Signal()
 
-        self.temp_update_interval = 60
-        self.n_updates = 0
+    def __init__(self, parent=None, debug=0):
+        super(QWeather, self).__init__(parent)
+        self.setObjectName(u"weather")
+
+        if parent is not None:
+            self.parent = parent
+        else:
+            self.parent = self
+
+        self.debug = debug
+
+        self.temp_update_interval = 60  # Once per minute
+        self.n_updates = 1
+        self.temp_data = [None]
+        self.temp_data_valid = False
 
         self.w_update_interval = 60*60  # Once per hour.
-        self.w_update = 0
+        self.w_update = 3
 
         self.w_text_index = 0
         self.w_period_offset = 0
+
+        self.request_headers = {
+            'User-Agent': '(QtWeatherApp, holtrop@physics.unh.edu)',
+            'From': 'holtrop@physics.unh.edu'
+        }
 
         self.time_zone = tz.gettz('America/New_York')
         self.fc = None   # Stores the dict of the weather forecast.
@@ -112,58 +266,52 @@ class QWeather(QMainWindow):
         self.zqm_poll = zmq.Poller()
         self.zqm_poll.register(self.zmq_socket, zmq.POLLIN)
 
-        self.setupUi()
-        self.update_temperatures()
-
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
         self.timer.start(1000)
 
-
-    def setupUi(self):
         # Setup the UI
 
-        self.weather = self
-        self.label_inside = QLabel(self.weather)
+        self.label_inside = QLabel(self.parent)
         self.label_inside.setObjectName(u"label_inside")
         self.label_inside.setGeometry(QRect(10, 10, 58, 16))
         self.label_inside.setText(u"Inside:")
         self.label_inside.setStyleSheet(u"color: #005555")
-        self.inside_temp_2 = QLabel(self.weather)
+        self.inside_temp_2 = QLabel(self.parent)
         self.inside_temp_2.setObjectName(u"temp")
         self.inside_temp_2.setText(u"20.5 C - 36%")
         self.inside_temp_2.setGeometry(QRect(10, 30, 241, 31))
         self.inside_temp_2.setStyleSheet(u"color: rgba(40,40,40,100)")
         self.inside_temp_2.setScaledContents(True)
-        self.pressure_2 = QLabel(self.weather)
+        self.pressure_2 = QLabel(self.parent)
         self.pressure_2.setObjectName(u"press")
         self.pressure_2.setText(u"1005.5 mbar")
         self.pressure_2.setGeometry(QRect(10, 60, 241, 31))
         self.pressure_2.setStyleSheet(u"color: rgba(40,40,40,100)")
         self.pressure_2.setScaledContents(True)
-        self.outside_temp_2 = QLabel(self.weather)
+        self.outside_temp_2 = QLabel(self.parent)
         self.outside_temp_2.setObjectName(u"temp")
         self.outside_temp_2.setText(u"20.5 C - 36%")
         self.outside_temp_2.setGeometry(QRect(260, 30, 241, 31))
         self.outside_temp_2.setStyleSheet(u"color: rgba(40,40,40,100)")
         self.outside_temp_2.setScaledContents(True)
-        self.label_outside = QLabel(self.weather)
+        self.label_outside = QLabel(self.parent)
         self.label_outside.setObjectName(u"label_outside")
         self.label_outside.setText(QCoreApplication.translate("Clock", u"Outside:", None))
         self.label_outside.setGeometry(QRect(260, 10, 58, 16))
         self.label_outside.setStyleSheet(u"color: #005555")
-        self.pressure_3 = QLabel(self.weather)
+        self.pressure_3 = QLabel(self.parent)
         self.pressure_3.setObjectName(u"press")
         self.pressure_3.setText(u"1005.5 mbar")
         self.pressure_3.setGeometry(QRect(260, 60, 241, 31))
         self.pressure_3.setStyleSheet(u"color: rgba(40,40,40,100)")
         self.pressure_3.setScaledContents(True)
-        self.label_closet = QLabel(self.weather)
+        self.label_closet = QLabel(self.parent)
         self.label_closet.setObjectName(u"label_closet")
         self.label_closet.setText(u"Closet:")
         self.label_closet.setGeometry(QRect(530, 10, 58, 16))
         self.label_closet.setStyleSheet(u"color: #005555")
-        self.closet_temp = QLabel(self.weather)
+        self.closet_temp = QLabel(self.parent)
         self.closet_temp.setObjectName(u"temp")
         self.closet_temp.setText(u"20.5 C - 36%")
         self.closet_temp.setGeometry(QRect(530, 30, 241, 31))
@@ -172,29 +320,40 @@ class QWeather(QMainWindow):
 
         self.weather_icons = []
         for i in range(14):
-            self.weather_icons.append(weather_info_icon(i, self.weather))
+            self.weather_icons.append(QWeatherInfoIcon(i, self.parent))
 
-        self.next_button = QPushButton(self.weather)
+        self.next_button = QPushButton(self.parent)
         self.next_button.setObjectName("next")
-        self.next_button.setGeometry(800-10-20, 150, 10, 120)
+        self.next_button.setGeometry(800-15-12, 150, 10, 120)
         self.next_button.clicked.connect(self.shift_weather_icons_right)
 
-        self.prev_button = QPushButton(self.weather)
+        self.prev_button = QPushButton(self.parent)
         self.prev_button.setObjectName("prev")
-        self.prev_button.setGeometry(1-10, 150, 10, 120)
+        self.prev_button.setGeometry(QRect(2-5, 150, 10, 120))
         self.prev_button.clicked.connect(self.shift_weather_icons_left)
 
-        self.weather_text = QPlainTextEdit(self.weather)
+        self.weather_text = QTextEdit(self.parent)
         self.weather_text.setObjectName("weather_text")
         self.weather_text.setGeometry(QRect(5, 300, 800-10, 480-20-300))
         self.weather_text.setReadOnly(True)
         self.weather_text.insertPlainText("This is a description of the weather for the day that"
                                           "was chosen by clicking on the icon above.")
 
+        # Signal Slot connections.
+        self.temp_updated.connect(self.update_temperature_display)
+        self.weather_updated.connect(self.update_weather_info)
+
+        if self.debug:
+            print("QWeather.__init__() done.")
+
     def get_weather_json(self, point):
         """Get the top level weather JSOn from the weather.gov website for GEO location point"""
         url = self.Weather_gov_url + "{:.4f},{:.4f}".format(point[0], point[1])
-        js = requests.get(url).json()
+        js = requests.get(url, headers=self.request_headers).json()
+        if js is None or 'properties' not in js:
+            print("Did not get top level weather request.")
+            return None
+
         return js
 
     def get_weather_forecast(self, point=None, top_level_json=None, kind=None):
@@ -204,7 +363,10 @@ class QWeather(QMainWindow):
             if point is not None:
                 top_level_json = self.get_weather_json(point)
             else:
-                return None
+                top_level_json = self.get_weather_json(self.GEO_Point_Yarmouth)
+
+        if top_level_json is None:
+            return None
 
         url = ""
         if kind is None or kind == "forecast":
@@ -217,27 +379,54 @@ class QWeather(QMainWindow):
             print("I do not know about the forecast kind=", kind)
             return None
 
-        js = requests.get(url).json()
-        return js
+        payload = {"units": "si"}
+        try:
+            js = requests.get(url, params=payload, headers=self.request_headers).json()
+        except Exception as e:
+            print("Could not get the weather json:", datetime.now())
+            print(e)
+            return None
+
+        if 'properties' not in js:
+            print("Error getting weather information:", datetime.now())
+            print(js['status'])
+            return None
+        else:
+            return js
 
     def update_weather_text(self):
         """Update the weather text area."""
-        text = self.fc['periods'][self.w_text_index]['name'] + ":\n" + \
+        text = self.fc['periods'][self.w_text_index]['name'] + ": <b>" + \
+               self.fc['periods'][self.w_text_index]['shortForecast']+"</b><br/>\n" + \
                self.fc['periods'][self.w_text_index]['detailedForecast']
         self.weather_text.clear()
-        self.weather_text.insertPlainText(text)
+#        self.weather_text.insertPlainText(text)
+        self.weather_text.insertHtml(text)
 
     def update_weather(self):
         """Update the weather forecast from weather.gov """
         self.w_update -= 1
+
+        old_fc = self.fc
         if self.w_update <= 0:
             self.w_update = self.w_update_interval
-            fc_dict = self.get_weather_forecast(self.GEO_Point_Yarmouth, kind="forecast")
-            self.fc = fc_dict['properties']
-            self.fc_time = datetime.fromisoformat(fc_dict['properties']['updateTime']).astimezone(self.time_zone)
-            self.update_weather_icons()
-            self.draw_weather_icons()
-            self.update_weather_text()
+            new_fc = self.get_weather_forecast(self.GEO_Point_Yarmouth, kind="forecast")
+            if new_fc is None:
+                # Do not change the text and do not emit an "updated"
+                self.w_update = 360  # Try again in 3 minutes.
+                return
+
+            try:
+
+                self.fc = new_fc['properties']
+                self.fc_time = datetime.fromisoformat(new_fc['properties']['updateTime']).astimezone(self.time_zone)
+                if self.debug > 1:
+                    print("Emit: weather_updated")
+                self.weather_updated.emit()
+            except Exception as e:
+                print("Did not get the proper weather.", e)
+                self.fc = old_fc
+                self.fc['periods'][0]['name'] += "NOT UPDATED"
 
     def update_weather_icons(self):
         """Update the weather icon contents. (slow!)"""
@@ -253,6 +442,15 @@ class QWeather(QMainWindow):
             self.weather_icons[i+self.w_period_offset].setGeometry(16+i*96, 150, 96, 120)
             self.weather_icons[i+self.w_period_offset].show()
             # (16+i*96, 150)
+
+    @Slot()
+    def update_weather_info(self):
+        if self.debug > 1:
+            print(" -- update_weather_info() ")
+        self.update_weather_icons()
+        self.draw_weather_icons()
+        self.update_weather_text()
+
 
     @Slot()
     def shift_weather_icons_right(self):
@@ -272,15 +470,15 @@ class QWeather(QMainWindow):
         if self.w_period_offset > 0:
             self.w_period_offset -= 1
             self.draw_weather_icons()
-            if self.w_text_index > self.w_period_offset+8:
-                self.w_text_index = self.w_period_offset+8
+            if self.w_text_index > self.w_period_offset+7:
+                self.w_text_index = self.w_period_offset+7
                 self.update_weather_text()
 
 
     @Slot()
     def icon_click(self, idx):
         """Called when a weather icon is clicked."""
-        self.w_text_index = idx + self.w_period_offset
+        self.w_text_index = idx
         self.update_weather_text()
 
     @Slot()
@@ -291,7 +489,7 @@ class QWeather(QMainWindow):
 
     @Slot()
     def update_temperatures(self):
-        """Get a new set of temperatures from bbb1 using zmq and display them."""
+        """Get a new set of temperatures from bbb1 using zmq."""
         self.n_updates = self.n_updates - 1
 
         def smart_float(d):
@@ -312,26 +510,45 @@ class QWeather(QMainWindow):
 
         if self.zmq_request_made:
             socks = dict(self.zqm_poll.poll(2))
+            if self.debug > 2:
+                print("Polling, ")
             if self.zmq_socket in socks and socks[self.zmq_socket] == zmq.POLLIN:
+                if self.debug > 2:
+                    print("Got a poll reply.")
                 mess = self.zmq_socket.recv(zmq.DONTWAIT)
+                if self.debug > 2:
+                    print(mess)
                 self.temp_data = list(map(smart_float, mess[1:-1].decode().split(',')))
                 self.n_updates = self.temp_update_interval
+                self.temp_data_valid = True
                 self.zmq_request_made = False
-                # print(" data: ", self.temp_data)
+                if self.debug > 1:
+                    print("temp_updated.emit()")
+                self.temp_updated.emit()
+            elif self.n_updates < -1:
+                self.temp_data_valid = False
+                if self.debug > 2:
+                    print("nothing, n_updates = ", self.n_updates)
+                self.temp_updated.emit()
 
-                self.inside_temp_2.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[1], self.temp_data[3]))
-                self.set_temp_color(self.inside_temp_2, self.temp_data[1], True)
+    @Slot()
+    def update_temperature_display(self):
+        """Update the temperature display."""
+        if self.debug > 1:
+            print("update_temperature_display(). Data is valid = ", self.temp_data_valid)
+        self.inside_temp_2.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[1], self.temp_data[3]))
+        self.set_temp_color(self.inside_temp_2, self.temp_data[1], True, not self.temp_data_valid)
 
-                self.outside_temp_2.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[5], self.temp_data[7]))
-                self.set_temp_color(self.outside_temp_2, self.temp_data[5], True)
+        self.outside_temp_2.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[5], self.temp_data[7]))
+        self.set_temp_color(self.outside_temp_2, self.temp_data[5], False, not self.temp_data_valid)
 
-                self.closet_temp.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[10], self.temp_data[9]))
-                self.set_temp_color(self.closet_temp, self.temp_data[10], True)
+        self.closet_temp.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[10], self.temp_data[9]))
+        self.set_temp_color(self.closet_temp, self.temp_data[10], True, not self.temp_data_valid)
 
-                self.pressure_2.setText("{:7.2f} mbar".format(self.temp_data[2]))
-                self.set_pressure_color(self.pressure_2, self.temp_data[2])
-                self.pressure_3.setText("{:7.2f} mbar".format(self.temp_data[6]))
-                self.set_pressure_color(self.pressure_3, self.temp_data[6])
+        self.pressure_2.setText("{:7.2f} mbar".format(self.temp_data[2]))
+        self.set_pressure_color(self.pressure_2, self.temp_data[2], self.temp_data_valid)
+        self.pressure_3.setText("{:7.2f} mbar".format(self.temp_data[6]))
+        self.set_pressure_color(self.pressure_3, self.temp_data[6], self.temp_data_valid)
 
     @staticmethod
     def set_pressure_color(obj, press, valid = True):
@@ -351,6 +568,8 @@ class QWeather(QMainWindow):
                       colors[i-1])
             color = QColor.fromHsv(hue, 255, 120, 255)
             obj.setStyleSheet("color: rgba({},{},{},255)".format(color.red(), color.green(), color.blue()))
+        else:
+            obj.setStyleSheet("color: rgba({},{},{},255)".format(100, 100, 100))
 
     @staticmethod
     def set_temp_color(obj, temp, inside=True, invalid=False):
@@ -377,28 +596,25 @@ class QWeather(QMainWindow):
 
             obj.setStyleSheet("color: rgba({},{},{},255)".format(color.red(), color.green(), color.blue()))
 
-
-
-# Call this function in your main after creating the QApplication
-def setup_interrupt_handling():
-    """Setup handling of KeyboardInterrupt (Ctrl-C) for PyQt."""
-    signal.signal(signal.SIGINT, _interrupt_handler)
-    # Regularly run some (any) python code, so the signal handler gets a
-    # chance to be executed:
-    # safe_timer(50, lambda: None)
-
-
-# Define this as a global function to make sure it is not garbage
-# collected when going out of scope:
-def _interrupt_handler(signum, frame):
-    """Handle KeyboardInterrupt: quit application."""
-    print("You interrupted me with a control-C. ")
-    QApplication.quit()
-
 if __name__ == '__main__':
     import sys
     import os
     import argparse
+
+    # Call this function in your main after creating the QApplication
+    def setup_interrupt_handling():
+        """Setup handling of KeyboardInterrupt (Ctrl-C) for PyQt."""
+        signal.signal(signal.SIGINT, _interrupt_handler)
+        # Regularly run some (any) python code, so the signal handler gets a
+        # chance to be executed:
+        # safe_timer(50, lambda: None)
+
+    # Define this as a global function to make sure it is not garbage
+    # collected when going out of scope:
+    def _interrupt_handler(signum, frame):
+        """Handle KeyboardInterrupt: quit application."""
+        print("You interrupted me with a control-C. ")
+        QApplication.quit()
 
 
     setup_interrupt_handling()
@@ -409,6 +625,7 @@ if __name__ == '__main__':
     parser.add_argument("--debug", "-d", action="count", help="Increase debug level.", default=0)
     parser.add_argument("--style", "-s", type=str, help="Use specified style sheet.", default=None)
     parser.add_argument("--frameless", "-fl", action="store_true", help="Make a frameless window.")
+    parser.add_argument("--icon", "-i", action="store_true", help="Show the weather icon.")
 
     args = parser.parse_args(sys.argv[1:])
 
@@ -423,7 +640,15 @@ if __name__ == '__main__':
     # print(style_sheet.data().decode("utf-8"))
     app.setStyleSheet(style_sheet.data().decode("utf-8"))
 
-    weather = QWeather()
-    weather.resize(800, 460)
-    weather.show()
+    if args.icon:
+        weather = QWeather()
+        weather.update_weather()
+        icon = QWeatherIcon((0, 0), weather)
+        icon.show()
+    else:
+        weather = QWeather()
+        weather.resize(800, 460)
+        weather.debug = args.debug
+        weather.show()
+
     sys.exit(app.exec_())

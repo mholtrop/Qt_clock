@@ -3,5 +3,7 @@
         <file>Clock.qss</file>
         <file>up_arrow.png</file>
         <file>down_arrow.png</file>
+        <file>left.png</file>
+        <file>right.png</file>
     </qresource>
 </RCC>

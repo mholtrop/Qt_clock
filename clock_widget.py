@@ -1,5 +1,8 @@
 #
+# clock_widget
 #
+# The "Clock_widget" is actually the main component for the
+# qt_clock application. It is not only the clock component.
 #
 #
 import os
@@ -9,21 +12,18 @@ from PySide2.QtWidgets import QMainWindow, QSizePolicy, QTabWidget, QWidget, QLa
 from PySide2.QtGui import QColor, QFont, QPainter, QPolygon
 from PySide2.QtCore import Qt, Slot, QTimer, QDateTime, QTime, QRect, QCoreApplication, QPoint
 
+from weather import QWeather, QTempMiniPanel, QWeatherIcon
+from moon import QMoon
+from tides import QHiLoTide
+
 class Clock_widget(QMainWindow):
 
-    def __init__(self, frameless=False):
+    def __init__(self, frameless=False, web=False, debug=0):
         super(Clock_widget, self).__init__()
 
-        self.debug = 0
+        self.debug = debug
         self.frameless = frameless
-
-        self.zmq_context = zmq.Context()
-        self.zmq_socket = self.zmq_context.socket(zmq.REQ)
-        self.zmq_socket.connect("tcp://10.0.0.130:5555")
-        self.zmq_request_made = False
-        self.zqm_poll = zmq.Poller()
-        self.zqm_poll.register(self.zmq_socket, zmq.POLLIN)
-
+        self.web = web
         self.analog = None
         self.bedtime = QTime(20, 15, 00)
         self.bedtime_grace_period = 10
@@ -41,8 +41,6 @@ class Clock_widget(QMainWindow):
         self.timer.timeout.connect(self.update)
         self.timer.start(1000)
 
-        self.update_temperatures()
-
     def setupUi(self, parent):
         """Setup the interfaces for the clock."""
 
@@ -59,10 +57,18 @@ class Clock_widget(QMainWindow):
         parent.setWindowFlag(Qt.Widget, True)
         if os.uname().sysname == "Linux" or self.frameless:
             parent.setWindowFlag(Qt.FramelessWindowHint, True)
-
+    
         self.tabWidget = QTabWidget(parent)
         self.tabWidget.setObjectName(u"tabWidget")
         self.tabWidget.setGeometry(QRect(0, 0, 800, 460))
+        # This works for Mac, but seems to not work with Linux/Arm/RPi
+        # tabbar = self.tabWidget.tabBar()
+        # tabbar.setMinimumSize(50, 24)
+        # tabfont = QFont()
+        # tabfont.setBold(True)
+        # tabfont.setItalic(True)
+        # tabfont.setPointSize(32)
+        # tabbar.setFont(tabfont)
 
         # Setup the TABS
         self.clock = QWidget()
@@ -70,8 +76,7 @@ class Clock_widget(QMainWindow):
         self.tabWidget.addTab(self.clock, "")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.clock), "Clock")
 
-        self.weather = QWidget()
-        self.weather.setObjectName(u"weather")
+        self.weather = QWeather(parent=None, debug=self.debug)
         self.tabWidget.addTab(self.weather, "")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.weather), "Weather")
 
@@ -91,16 +96,30 @@ class Clock_widget(QMainWindow):
         # DIGITAL clock in "clock" tab
         self.Digital = QLabel(self.clock)
         self.Digital.setObjectName(u"Digital")
-        self.Digital.setGeometry(QRect(20, 10, 771, 71))
+        self.Digital.setGeometry(QRect(0, 5, 765, 71))
         self.Digital.setAutoFillBackground(False)
         self.Digital.setStyleSheet(u"")
         self.Digital.setText(u"Current Time - Date + time")
+
+        # Weather Icon
+        self.weathericon = QWeatherIcon((480, 5), self.weather, parent=self.clock)
+        self.weather.weather_updated.connect(self.weathericon.update)
+
+        # Weather info on the Clock page.
+        self.minipanel = QTempMiniPanel((475, 105), self.weather, parent=self.clock)
+        self.weather.temp_updated.connect(self.minipanel.update)
+
+        self.hilo = QHiLoTide((580, 5), parent=self.clock, debug=self.debug)
+
+
+        # Moon phase
+        self.moon = QMoon(pos=(450, 210), parent=self.clock, size=216, web=self.web)
 
         # Push buttons in "clock tab.
         push_button_width = 111
         push_button_height = 40
         push_button_x = 670
-        push_button_y = 210
+        push_button_y = 220
 
         self.ledball_off = QPushButton(self.clock)
         self.ledball_off.setObjectName(u"ledball_off")
@@ -122,90 +141,9 @@ class Clock_widget(QMainWindow):
         self.sleep.setText(u"Sleep")
         self.sleep.setGeometry(QRect(push_button_x, push_button_y+push_button_height*3+10, push_button_width, push_button_height))
 
-        # Weather information mini panel
-        self.inside_temp = QLabel(self.clock)
-        self.inside_temp.setObjectName(u"temp")
-        self.inside_temp.setText(u"xx.x C - xx%")
-        self.inside_temp.setGeometry(QRect(520, 90, 261, 31))
-        self.inside_temp.setStyleSheet(u"color: rgba(40,40,40,100)")
-        self.inside_temp.setScaledContents(True)
-        self.label_in = QLabel(self.clock)
-        self.label_in.setObjectName(u"label")
-        self.label_in.setText(QCoreApplication.translate("Clock", u"Inside:", None))
-        self.label_in.setGeometry(QRect(450, 100, 58, 16))
-        self.label_in.setStyleSheet(u"color: #005555")
-        self.outside_temp = QLabel(self.clock)
-        self.outside_temp.setObjectName(u"temp")
-        self.outside_temp.setText(u"20.5 C - 36%")
-        self.outside_temp.setGeometry(QRect(520, 120, 261, 31))
-        self.outside_temp.setStyleSheet(u"color: rgba(40,40,40,100)")
-        self.outside_temp.setScaledContents(True)
-        self.label_out = QLabel(self.clock)
-        self.label_out.setObjectName(u"label")
-        self.label_out.setText(u"Outside:")
-        self.label_out.setGeometry(QRect(450, 130, 58, 16))
-        self.label_out.setStyleSheet(u"color: #005555")
-        self.label_press = QLabel(self.clock)
-        self.label_press.setObjectName(u"label_")
-        self.label_press.setText(u"Pressure:")
-        self.label_press.setGeometry(QRect(450, 160, 58, 16))
-        self.label_press.setStyleSheet(u"color: #005555")
-        self.pressure = QLabel(self.clock)
-        self.pressure.setObjectName(u"press")
-        self.pressure.setText(u"1xxx.x mbar")
-        self.pressure.setGeometry(QRect(520, 150, 261, 31))
-        self.pressure.setStyleSheet(u"color: rgba(40,40,40,100)")
-        self.pressure.setScaledContents(True)
-
         #################################################################################################
         # Setup Weather Page
         #################################################################################################
-
-        self.label_inside = QLabel(self.weather)
-        self.label_inside.setObjectName(u"label")
-        self.label_inside.setGeometry(QRect(10, 10, 58, 16))
-        self.label_inside.setText(u"Inside:")
-        self.label_inside.setStyleSheet(u"color: #005555")
-        self.inside_temp_2 = QLabel(self.weather)
-        self.inside_temp_2.setObjectName(u"temp")
-        self.inside_temp_2.setText(u"20.5 C - 36%")
-        self.inside_temp_2.setGeometry(QRect(10, 30, 241, 31))
-        self.inside_temp_2.setStyleSheet(u"color: rgba(40,40,40,100)")
-        self.inside_temp_2.setScaledContents(True)
-        self.pressure_2 = QLabel(self.weather)
-        self.pressure_2.setObjectName(u"press")
-        self.pressure_2.setText(u"1005.5 mbar")
-        self.pressure_2.setGeometry(QRect(10, 60, 241, 31))
-        self.pressure_2.setStyleSheet(u"color: rgba(40,40,40,100)")
-        self.pressure_2.setScaledContents(True)
-        self.outside_temp_2 = QLabel(self.weather)
-        self.outside_temp_2.setObjectName(u"temp")
-        self.outside_temp_2.setText(u"20.5 C - 36%")
-        self.outside_temp_2.setGeometry(QRect(260, 30, 241, 31))
-        self.outside_temp_2.setStyleSheet(u"color: rgba(40,40,40,100)")
-        self.outside_temp_2.setScaledContents(True)
-        self.label_outside = QLabel(self.weather)
-        self.label_outside.setObjectName(u"label")
-        self.label_outside.setText(QCoreApplication.translate("Clock", u"Outside:", None))
-        self.label_outside.setGeometry(QRect(260, 10, 58, 16))
-        self.label_outside.setStyleSheet(u"color: #005555")
-        self.pressure_3 = QLabel(self.weather)
-        self.pressure_3.setObjectName(u"press")
-        self.pressure_3.setText(u"1005.5 mbar")
-        self.pressure_3.setGeometry(QRect(260, 60, 241, 31))
-        self.pressure_3.setStyleSheet(u"color: rgba(40,40,40,100)")
-        self.pressure_3.setScaledContents(True)
-        self.label_closet = QLabel(self.weather)
-        self.label_closet.setObjectName(u"label")
-        self.label_closet.setText(u"Closet:")
-        self.label_closet.setGeometry(QRect(530, 10, 58, 16))
-        self.label_closet.setStyleSheet(u"color: #005555")
-        self.closet_temp = QLabel(self.weather)
-        self.closet_temp.setObjectName(u"temp")
-        self.closet_temp.setText(u"20.5 C - 36%")
-        self.closet_temp.setGeometry(QRect(530, 30, 241, 31))
-        self.closet_temp.setStyleSheet(u"color: rgba(40,40,40,100)")
-        self.closet_temp.setScaledContents(True)
 
         #################################################################################################
         # Setup Setting Page
@@ -305,10 +243,12 @@ class Clock_widget(QMainWindow):
 
         self.temp_test_slide.valueChanged.connect(self.test_temp_update)
         self.temp_check_outside.clicked.connect(self.test_temp_update)
+
         self.ledball_off.clicked.connect(self.set_ledball_off)
         self.ledball_on.clicked.connect(self.set_ledball_on)
         self.ledball_on2.clicked.connect(self.set_ledball_on2)
         self.sleep.clicked.connect(self.set_sleep)
+
         self.timeEdit.timeChanged.connect(self.set_bedtime)
         self.grace_period.valueChanged.connect(self.set_grace_period)
         self.Brightness.valueChanged.connect(self.set_screen_brightness)
@@ -358,58 +298,6 @@ class Clock_widget(QMainWindow):
             self.Digital.setStyleSheet("")
             self.set_ledball_off()
             self.turn_off_lcd()
-
-        self.update_temperatures()
-
-    @Slot()
-    def update_temperatures(self):
-        """Get a new set of temperatures from bbb1 using zmq and display them."""
-        self.n_updates = self.n_updates - 1
-
-        def smart_float(d):
-            try:
-                r = float(d)
-            except:
-                r = d.replace('"', '')
-            return r
-
-
-        if self.n_updates <= 1:  # We take two updates to complete this, so start at 1
-
-            if not self.zmq_request_made:
-                self.zmq_socket.send(b'a')
-                self.zmq_request_made = True
-            else:
-                pass
-
-        if self.zmq_request_made:
-            socks = dict(self.zqm_poll.poll(2))
-            if self.zmq_socket in socks and socks[self.zmq_socket] == zmq.POLLIN:
-                mess = self.zmq_socket.recv(zmq.DONTWAIT)
-                self.temp_data = list(map(smart_float, mess[1:-1].decode().split(',')))
-                self.n_updates = self.temp_update_interval
-                self.zmq_request_made = False
-                # print(" data: ", self.temp_data)
-
-                self.inside_temp.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[1], self.temp_data[3]))
-                self.inside_temp_2.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[1], self.temp_data[3]))
-                self.set_temp_color(self.inside_temp, self.temp_data[1], True)
-                self.set_temp_color(self.inside_temp_2, self.temp_data[1], True)
-
-                self.outside_temp.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[5], self.temp_data[7]))
-                self.outside_temp_2.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[5], self.temp_data[7]))
-                self.set_temp_color(self.outside_temp, self.temp_data[5], True)
-                self.set_temp_color(self.outside_temp_2, self.temp_data[5], True)
-
-                self.closet_temp.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[10], self.temp_data[9]))
-                self.set_temp_color(self.closet_temp, self.temp_data[10], True)
-
-                self.pressure.setText("{:7.2f} mbar".format(self.temp_data[2]))
-                self.set_pressure_color(self.pressure, self.temp_data[2])
-                self.pressure_2.setText("{:7.2f} mbar".format(self.temp_data[2]))
-                self.set_pressure_color(self.pressure_2, self.temp_data[2])
-                self.pressure_3.setText("{:7.2f} mbar".format(self.temp_data[6]))
-                self.set_pressure_color(self.pressure_3, self.temp_data[6])
 
 
     @Slot()

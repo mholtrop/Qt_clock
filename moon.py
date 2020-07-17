@@ -1,0 +1,149 @@
+#
+#
+#
+# From NASA website: https://svs.gsfc.nasa.gov/4768
+# /*
+# ======================================================================
+# get_moon_imagenum()
+#
+# Initialize the frame number.  If the current date is within the year
+# moon_year, the frame number is the (rounded) number of hours since the
+# start of the year.  Otherwise it's 1.
+# ====================================================================== */
+#
+# function get_moon_imagenum()
+# {
+#    var now = new Date();
+#    var year = now.getUTCFullYear();
+#    if ( year != moon_year ) {
+#       moon_imagenum = 1;
+#       return false;
+#    }
+#    var janone = Date.UTC( year, 0, 1, 0, 0, 0 );
+#    moon_imagenum = 1 + Math.round(( now.getTime() - janone ) / 3600000.0 );
+#    if ( moon_imagenum > moon_nimages ) moon_imagenum = moon_nimages;
+#    return false;
+# }
+
+from datetime import datetime
+
+from PySide2.QtWidgets import QApplication, QWidget, QLabel
+from PySide2.QtGui import QPixmap, QImage
+from PySide2.QtCore import Qt, QFile, Slot, QTimer, QRect
+import requests
+
+class QMoon(QWidget):
+    """Small widget displays today's moon."""
+
+    def __init__(self, pos=(0, 0), parent=None, size=216, web=False, save=False, debug=0):
+        super(QMoon, self).__init__(parent)
+        self.debug = debug
+        self.size = size
+        self.get_from_web = web
+        self.save = save
+        # self.setGeometry(pos[0], pos[1], self.size, self.size)
+        self.moon = QLabel(self)
+        self.moon.setGeometry(pos[0], pos[1], self.size, self.size)
+        self.update()
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update)
+        self.timer.start(3600*1000)
+        self.image = None
+        self.pixmap = None
+        self.moon_image_number
+
+    @Slot()
+    def update(self):
+        if self.debug > 0:
+            print("Updating the Moon Phase pixmap.")
+        self.pixmap = self.get_moon_image()
+        self.moon.setPixmap(self.pixmap)
+
+    def get_moon_image(self):
+        janone = datetime(2020, 1, 1, 0, 0, 0)
+        self.moon_image_number = round((datetime.utcnow()-janone).total_seconds()/3600)
+        if self.size > 500 or self.get_from_web:
+            url=""
+            if self.size > 2160:
+                url = "https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004768/frames/5760x3240_16x9_30p/" \
+                      f"plain/moon.{self.moon_image_number:04d}.tif"
+            else:
+                url = "https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004768/frames/3840x2160_16x9_30p/" \
+                  f"plain/moon.{self.moon_image_number:04d}.tif"
+
+            if self.debug:
+                print(f"Getting image from url: {url}")
+            req = requests.get(url)
+            self.image = QImage()
+            self.image.loadFromData(req.content, "tiff")
+            size = self.image.size()
+            if self.debug:
+                print("Image size: ", size)
+            if self.save:
+                self.image.save(f"moon/moon.{self.moon_image_number:04d}.tiff")
+
+            offset = (size.width() - size.height())/2
+            rect = QRect(offset, 0, size.height(), size.height())
+            self.image = self.image.copy(rect)
+            pix = QPixmap.fromImage(self.image)
+            pix = pix.scaled(self.size, self.size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            return pix
+        else:
+            file = f"moon/moon.{self.moon_image_number:04d}.jpg"
+            pix = QPixmap(file)
+            pix = pix.scaled(self.size, self.size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            return pix
+
+
+if __name__ == '__main__':
+    import sys
+    import os
+    import argparse
+    import signal
+
+
+    # Call this function in your main after creating the QApplication
+    def setup_interrupt_handling():
+        """Setup handling of KeyboardInterrupt (Ctrl-C) for PyQt."""
+        signal.signal(signal.SIGINT, _interrupt_handler)
+        # Regularly run some (any) python code, so the signal handler gets a
+        # chance to be executed:
+        # safe_timer(50, lambda: None)
+
+    # Define this as a global function to make sure it is not garbage
+    # collected when going out of scope:
+    def _interrupt_handler(signum, frame):
+        """Handle KeyboardInterrupt: quit application."""
+        print("You interrupted me with a control-C. ")
+        QApplication.quit()
+
+
+    setup_interrupt_handling()
+
+    app = QApplication(sys.argv)
+
+    parser = argparse.ArgumentParser("Qt based Clock program for Raspberry Pi")
+    parser.add_argument("--debug", "-d", action="count", help="Increase debug level.", default=0)
+    parser.add_argument("--style", "-S", type=str, help="Use specified style sheet.", default=None)
+    parser.add_argument("--frameless", "-fl", action="store_true", help="Make a frameless window.")
+    parser.add_argument("--size", "-s", type=int, help="Size of the image to display", default=216)
+    parser.add_argument("--web", "-w", action="store_true", help="Get from web even if smaller than 500.")
+    parser.add_argument("--save", "-sa", action="store_true", help="Save to file.")
+
+    args = parser.parse_args(sys.argv[1:])
+
+    file = None
+    if args.style is None:
+        file = QFile("Clock.qss")
+    else:
+        file = QFile(args.style)
+
+    file.open(QFile.ReadOnly)
+    style_sheet = file.readAll()
+    # print(style_sheet.data().decode("utf-8"))
+    app.setStyleSheet(style_sheet.data().decode("utf-8"))
+
+    moon = QMoon(size=args.size, debug=args.debug, save=True)
+    moon.show()
+    sys.exit(app.exec_())
