@@ -140,7 +140,7 @@ class QTempMiniPanel:
                                     not self.weather.temp_data_valid)
             self.outside_temp.setText("{:5.2f} C  {:5.1f} %".format(self.weather.temp_data[5],
                                                                     self.weather.temp_data[7]))
-            QWeather.set_temp_color(self.outside_temp, self.weather.temp_data[5], True,
+            QWeather.set_temp_color(self.outside_temp, self.weather.temp_data[5], False,
                                     not self.weather.temp_data_valid)
             self.pressure.setText("{:7.2f} mbar".format(self.weather.temp_data[2]))
             QWeather.set_pressure_color(self.pressure, self.weather.temp_data[2], self.weather.temp_data_valid)
@@ -431,7 +431,15 @@ class QWeather(QWidget, QObject):
     def update_weather_icons(self):
         """Update the weather icon contents. (slow!)"""
         for i in range(len(self.weather_icons)):
-            self.weather_icons[i].set_weather_from_dict(self.fc['periods'][i + self.w_period_offset])
+            try:
+                self.weather_icons[i].set_weather_from_dict(self.fc['periods'][i + self.w_period_offset])
+            except Exception as e:
+                print("===== ERROR =====")
+                print("Updating weather icons, i=", i, " w_period_offset = ", self.w_period_offset)
+                print("len(self.fc[periods])=", len(self.fc['periods']))
+                print(e)
+
+
 
     def draw_weather_icons(self):
         """Draw the weather icons that should be visible in the correct location. """
