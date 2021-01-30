@@ -241,7 +241,7 @@ class QWeather(QWidget, QObject):
 
         self.temp_update_interval = 60  # Once per minute
         self.n_updates = 1
-        self.temp_data = [None]
+        self.temp_data = [-99.9]*11
         self.temp_data_valid = False
 
         self.w_update_interval = 60*60  # Once per hour.
@@ -261,7 +261,7 @@ class QWeather(QWidget, QObject):
 
         self.zmq_context = zmq.Context()
         self.zmq_socket = self.zmq_context.socket(zmq.REQ)
-        self.zmq_socket.connect("tcp://10.0.0.130:5555")
+        self.zmq_socket.connect("tcp://bbb1:5555")
         self.zmq_request_made = False
         self.zqm_poll = zmq.Poller()
         self.zqm_poll.register(self.zmq_socket, zmq.POLLIN)

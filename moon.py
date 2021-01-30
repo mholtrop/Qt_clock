@@ -1,8 +1,15 @@
+#!/usr/bin/env python3
 #
 #
-#
-# From NASA website: https://svs.gsfc.nasa.gov/4768
+# From NASA website: https://svs.gsfc.nasa.gov/4874
 # /*
+# const moon_domain = "https://svs.gsfc.nasa.gov";
+# const moon_path = "/vis/a000000/a004800/a004874/";
+# const moon_year = 2021;
+# const moon_febdays = 28;
+# const moon_nimages = 8760;
+#
+
 # ======================================================================
 # get_moon_imagenum()
 #
@@ -24,6 +31,11 @@
 #    if ( moon_imagenum > moon_nimages ) moon_imagenum = moon_nimages;
 #    return false;
 # }
+#
+# Get moon images locally with:
+# cd moon
+# wget -nc -w 1 -nd -r  https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004874/frames/216x216_1x1_30p
+#
 
 from datetime import datetime
 
@@ -32,11 +44,15 @@ from PySide2.QtGui import QPixmap, QImage
 from PySide2.QtCore import Qt, QFile, Slot, QTimer, QRect
 import requests
 
+
 class QMoon(QWidget):
     """Small widget displays today's moon."""
 
     def __init__(self, pos=(0, 0), parent=None, size=216, web=False, save=False, debug=0):
         super(QMoon, self).__init__(parent)
+        self.total_images = 8760
+        self.moon_domain = "https://svs.gsfc.nasa.gov"
+        self.moon_path = "/vis/a000000/a004800/a004874/"
         self.debug = debug
         self.size = size
         self.get_from_web = web
@@ -51,7 +67,7 @@ class QMoon(QWidget):
         self.timer.start(3600*1000)
         self.image = None
         self.pixmap = None
-        self.moon_image_number
+        self.moon_image_number = 1
 
     @Slot()
     def update(self):
@@ -60,17 +76,33 @@ class QMoon(QWidget):
         self.pixmap = self.get_moon_image()
         self.moon.setPixmap(self.pixmap)
 
+    def get_moon_image_number(self):
+        #
+        # Conversion from the jscript.
+        #
+        now = datetime.utcnow()
+        janone = datetime(now.year, 1, 1, 0, 0, 0)
+        self.moon_image_number = round((datetime.utcnow() - janone).total_seconds() / 3600)
+        return self.moon_image_number <= self.total_images
+
     def get_moon_image(self):
-        janone = datetime(2020, 1, 1, 0, 0, 0)
-        self.moon_image_number = round((datetime.utcnow()-janone).total_seconds()/3600)
+
+        if not self.get_moon_image_number():
+            print("Could not get the moon. Are we in a new year?")
+
+        if self.debug:
+            print(f"We are using moon image number: {self.moon_image_number}")
         if self.size > 500 or self.get_from_web:
-            url=""
+
             if self.size > 2160:
-                url = "https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004768/frames/5760x3240_16x9_30p/" \
+                url = self.moon_domain+self.moon_path+"/frames/5760x3240_16x9_30p/" \
                       f"plain/moon.{self.moon_image_number:04d}.tif"
-            else:
-                url = "https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004768/frames/3840x2160_16x9_30p/" \
+            elif self.size > 216:
+                url = self.moon_domain+self.moon_path+"/frames/3840x2160_16x9_30p/" \
                   f"plain/moon.{self.moon_image_number:04d}.tif"
+            else:
+                url = self.moon_domain + self.moon_path + "/frames/216x216_1x1_30p/" \
+                                                      f"moon.{self.moon_image_number:04d}.jpg"
 
             if self.debug:
                 print(f"Getting image from url: {url}")
@@ -90,18 +122,16 @@ class QMoon(QWidget):
             pix = pix.scaled(self.size, self.size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
             return pix
         else:
-            file = f"moon/moon.{self.moon_image_number:04d}.jpg"
-            pix = QPixmap(file)
+            moon_file = f"moon/moon.{self.moon_image_number:04d}.jpg"
+            pix = QPixmap(moon_file)
             pix = pix.scaled(self.size, self.size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
             return pix
 
 
 if __name__ == '__main__':
     import sys
-    import os
     import argparse
     import signal
-
 
     # Call this function in your main after creating the QApplication
     def setup_interrupt_handling():
