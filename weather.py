@@ -221,6 +221,7 @@ class QWeatherIcon(QSvgWidget):
 class QWeather(QWidget, QObject):
     """Simple Weather reporter window."""
     Weather_gov_url = "https://api.weather.gov/points/"
+    GEO_Point_Freeport = (43.8672, -70.0968)  # South Freeport
     GEO_Point_Yarmouth = (43.8365, -70.1635)  # Yarmouth
     GEO_Point_Portland_Airport = (43.64222, -70.30444)  # Portland Airport weather station
 
@@ -363,7 +364,7 @@ class QWeather(QWidget, QObject):
             if point is not None:
                 top_level_json = self.get_weather_json(point)
             else:
-                top_level_json = self.get_weather_json(self.GEO_Point_Yarmouth)
+                top_level_json = self.get_weather_json(self.GEO_Point_Freeport)
 
         if top_level_json is None:
             return None
@@ -410,7 +411,7 @@ class QWeather(QWidget, QObject):
         old_fc = self.fc
         if self.w_update <= 0:
             self.w_update = self.w_update_interval
-            new_fc = self.get_weather_forecast(self.GEO_Point_Yarmouth, kind="forecast")
+            new_fc = self.get_weather_forecast(self.GEO_Point_Freeport, kind="forecast")
             if new_fc is None:
                 # Do not change the text and do not emit an "updated"
                 self.w_update = 360  # Try again in 3 minutes.
