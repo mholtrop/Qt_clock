@@ -192,7 +192,7 @@ class QWeatherIcon(QSvgWidget):
         self.pos = pos
         self.weather = qweather
         self.setGeometry(pos[0], pos[1], 100, 100)
-        self.setStyleSheet("background-color: transparent;");
+        self.setStyleSheet("background-color: transparent;")
 
     @Slot()
     def update(self):
@@ -202,7 +202,7 @@ class QWeatherIcon(QSvgWidget):
             icon_url = self.weather.fc['periods'][0]['icon']
             # icon_url is something like:
             # "https://api.weather.gov/icons/land/day/sct?size=medium"
-            print( f"{datetime.now()} - Update icon for: '{condition}'  url: {icon_url} ")
+            print(f"{datetime.now()} - Update icon for: '{condition}'  url: {icon_url} ")
             match = re.match("https://api\.weather\.gov/icons/(.*)/(.*)/([a-z_]*).*", icon_url)
             if not match or not match.group(3) in self.WEATHER_ICONS:
                 print("Icon does not exist for match {} condition: {}".format(match.group(3),condition))
@@ -211,7 +211,6 @@ class QWeatherIcon(QSvgWidget):
                 # TODO: Refine this for night/day icons.
                 icon_name = self.WEATHER_ICONS[match.group(3)][0]
                 icon_file = "icons/" + icon_name
-                # icon_file = "icons/" + QWeatherIcon.WEATHER_ICONS[condition]
             self.load(icon_file)
             self.resize(100, 100)
         else:
@@ -650,10 +649,17 @@ if __name__ == '__main__':
     app.setStyleSheet(style_sheet.data().decode("utf-8"))
 
     if args.icon:
+        widget = QWidget()
+        widget.resize(250, 200)
         weather = QWeather()
         weather.update_weather()
-        icon = QWeatherIcon((0, 0), weather)
-        icon.show()
+        # Weather info on the Clock page.
+        minipanel = QTempMiniPanel((5, 100), weather, parent=widget)
+        weather.temp_updated.connect(minipanel.update)
+
+        icon = QWeatherIcon((5, 2), weather, parent=widget)
+        weather.weather_updated.connect(icon.update)
+        widget.show()
     else:
         weather = QWeather()
         weather.resize(800, 460)
