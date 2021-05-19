@@ -180,7 +180,7 @@ class QWeatherIcon(QSvgWidget):
         "tropical_storm": ("unknown.svg", "Tropical storm conditions"),
         "dust": ("unknown.svg", "Dust"),
         "smoke": ("unknown.svg", "Smoke"),
-        "haze": ("unknown.svg", "Haze"),
+        "haze": ("haze.svg", "Haze"),
         "hot": ("unknown.svg", "Hot"),
         "cold": ("unknown.svg", "Cold"),
         "blizzard": ("unknown.svg", "Blizzard"),
