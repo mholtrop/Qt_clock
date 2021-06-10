@@ -46,6 +46,7 @@ if __name__ == '__main__':
 
     if os.uname().sysname == "Linux":
         os.system("/usr/bin/xset dpms 28800 28800 36000")
+        os.system("/usr/bin/xset s off")  # Also turn off screen saver.
 
     setup_interrupt_handling()
 
