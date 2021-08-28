@@ -2,7 +2,8 @@
 #
 from datetime import datetime, timedelta
 from dateutil import tz
-import requests
+import urllib3
+# import requests
 import zmq
 import json
 
@@ -22,7 +23,7 @@ class Tides:
     def __init__(self):
         self.base_url = "https://tidesandcurrents.noaa.gov/api/datagetter"
         self.timezone = "lst_ldt"  # Local time.
-        self.station_dict={
+        self.station_dict = {
             "portland": 8418150,
             "popham": 8417177,
             "old orchard": 8418557,
@@ -32,6 +33,8 @@ class Tides:
             'User-Agent': '(QtWeatherApp, holtrop@physics.unh.edu)',
             'From': 'holtrop@physics.unh.edu'
         }
+        self.http = urllib3.PoolManager()
+        self.debug = 0
 
     def get_json_data(self, begin_date, end_date, station="portland", product="hilo"):
         """Get the requested data from NOAA as a JSON dictionary"""
@@ -55,7 +58,15 @@ class Tides:
         else:
             print("NOT YET IMPLEMENTED.")
 
-        js = requests.get(self.base_url, params=payload, headers=self.request_headers).json()
+        if self.debug:
+            print("Get data: url = ", self.base_url)
+            print("Get data: payload = ", payload)
+        # js = requests.get(self.base_url, params=payload, headers=self.request_headers).json()
+        req = self.http.request('GET', self.base_url, fields=payload, headers=self.request_headers)
+        if self.debug:
+            print(req.status)
+            print(req.data)
+        js = json.loads(req.data)
         if 'predictions' in js:
             return js['predictions']
         else:
@@ -84,6 +95,7 @@ class QHiLoTide(QTextEdit):
         """Update the panel"""
         self.clear()
         tides = Tides()
+        tides.debug = self.debug
         now = datetime.now()
         begin = (now+timedelta(days=-0.25)).strftime("%Y%m%d %H:%m")
         end = (now + timedelta(days=+0.85)).strftime("%Y%m%d %H:%m")
