@@ -252,7 +252,8 @@ class QWeather(QWidget, QObject):
 
         self.request_headers = {
             'User-Agent': '(QtWeatherApp, holtrop@physics.unh.edu)',
-            'From': 'holtrop@physics.unh.edu'
+            'From': 'holtrop@physics.unh.edu',
+            'Cache-Control': 'no-cache'
         }
 
         self.time_zone = tz.gettz('America/New_York')
@@ -317,6 +318,12 @@ class QWeather(QWidget, QObject):
         self.closet_temp.setGeometry(QRect(530, 30, 241, 31))
         self.closet_temp.setStyleSheet(u"color: rgba(40,40,40,100)")
         self.closet_temp.setScaledContents(True)
+
+        self.weather_forecast_time = QLabel(self.parent)
+        self.weather_forecast_time.setObjectName(u"forecast_time")
+        self.weather_forecast_time.setText(u"Forecast: never")
+        self.weather_forecast_time.setGeometry(QRect(10, 120, 300, 18))
+        self.weather_forecast_time.setStyleSheet(u"color: #005555")
 
         self.weather_icons = []
         for i in range(14):
@@ -402,6 +409,8 @@ class QWeather(QWidget, QObject):
         self.weather_text.clear()
 #        self.weather_text.insertPlainText(text)
         self.weather_text.insertHtml(text)
+        self.weather_forecast_time.setText(self.fc_time.strftime('Forecast: %Y-%m-%d %H:%M'))
+
 
     def update_weather(self):
         """Update the weather forecast from weather.gov """
