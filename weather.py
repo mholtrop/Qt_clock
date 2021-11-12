@@ -2,8 +2,7 @@
 #
 from datetime import datetime
 from dateutil import tz
-# import requests  ### Requests seems to get OLD versions!!!
-import urllib3
+import requests
 import zmq
 import re
 import json
@@ -50,10 +49,6 @@ class QWeatherInfoIcon(QPushButton):
         self.set_weather_icon()
         self.hide()
         self.clicked.connect(self.click)
-        self.request_headers = urllib3.make_headers(user_agent='(QtWeatherApp, holtrop@physics.unh.edu)',
-                                                    disable_cache=True)
-        self.http = urllib3.PoolManager()
-
 
     def set_day_label(self, new):
         """Set the label to the new text"""
@@ -63,10 +58,9 @@ class QWeatherInfoIcon(QPushButton):
         """Get the weather icon raw data from the url"""
 
         if url is not None and url != self.pix_url:
-            req = self.http.request('GET', url, headers=self.request_headers)
-            # print(f"request: {req.status}")
+            req = requests.get(url)
             icon = QPixmap()
-            icon.loadFromData(req.data)
+            icon.loadFromData(req.content)
             self.pix.setPixmap(icon)
             self.pix_url = url
 
@@ -355,7 +349,6 @@ class QWeather(QWidget, QObject):
         # Signal Slot connections.
         self.temp_updated.connect(self.update_temperature_display)
         self.weather_updated.connect(self.update_weather_info)
-        self.http = urllib3.PoolManager()
 
         if self.debug:
             print("QWeather.__init__() done.")
@@ -363,8 +356,7 @@ class QWeather(QWidget, QObject):
     def get_weather_json(self, point):
         """Get the top level weather JSOn from the weather.gov website for GEO location point"""
         url = self.Weather_gov_url + "{:.4f},{:.4f}".format(point[0], point[1])
-        req = self.http.request('GET', url, headers=self.request_headers)
-        js = json.loads(req.data.decode('utf-8'))  # requests.get(url, headers=self.request_headers).json()
+        js = requests.get(url, headers=self.request_headers).json()
         if js is None or 'properties' not in js:
             print("Did not get top level weather request.")
             return None
@@ -394,14 +386,9 @@ class QWeather(QWidget, QObject):
             print("I do not know about the forecast kind=", kind)
             return None
 
-        if self.debug:
-            print(f"Weather update url = {url}")
-
         payload = {"units": "si"}
         try:
-            req = self.http.request('GET', url, fields=payload, headers=self.request_headers)
-            js = json.loads(req.data.decode('utf-8'))
-            # js = requests.get(url, params=payload, headers=self.request_headers).json()
+            js = requests.get(url, params=payload, headers=self.request_headers).json()
         except Exception as e:
             print("Could not get the weather json:", datetime.now())
             print(e)
@@ -412,9 +399,6 @@ class QWeather(QWidget, QObject):
             print(js['status'])
             return None
         else:
-            if self.debug:
-                print(f"Weather forecast from {js['properties']['updated']}")
-                print(f"Weather generated at  {js['properties']['generatedAt']}")
             return js
 
     def update_weather_text(self):
@@ -426,6 +410,7 @@ class QWeather(QWidget, QObject):
 #        self.weather_text.insertPlainText(text)
         self.weather_text.insertHtml(text)
         self.weather_forecast_time.setText(self.fc_time.strftime('Forecast: %Y-%m-%d %H:%M'))
+
 
     def update_weather(self):
         """Update the weather forecast from weather.gov """
