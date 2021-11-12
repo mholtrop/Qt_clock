@@ -256,8 +256,11 @@ class QWeather(QWidget, QObject):
         self.w_text_index = 0
         self.w_period_offset = 0
 
-        self.request_headers = urllib3.make_headers(user_agent='(QtWeatherApp, holtrop@physics.unh.edu)',
-                                                    disable_cache=True)
+        self.request_headers = {
+            'User-Agent': '(QtWeatherApp, holtrop@physics.unh.edu)',
+            'From': 'holtrop@physics.unh.edu',
+            'Cache-Control': 'no-cache'
+        }
 
         self.time_zone = tz.gettz('America/New_York')
         self.fc = None   # Stores the dict of the weather forecast.
