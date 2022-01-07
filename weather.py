@@ -182,8 +182,8 @@ class QWeatherIcon(QSvgWidget):
         "smoke": ("unknown.svg", "Smoke"),
         "haze": ("haze.svg", "Haze"),
         "hot": ("hot.svg", "Hot"),
-        "cold": ("unknown.svg", "Cold"),
-        "blizzard": ("unknown.svg", "Blizzard"),
+        "cold": ("cold.svg", "Cold"),
+        "blizzard": ("blizzard.svg", "Blizzard"),
         "fog": ("fog.svg", "Fog/mist")
     }
 
@@ -210,6 +210,8 @@ class QWeatherIcon(QSvgWidget):
             else:
                 # TODO: Refine this for night/day icons.
                 icon_name = self.WEATHER_ICONS[match.group(3)][0]
+                print(f"Icon name: {icon_name}")
+                print(f"Icon match {match.group(3)}  = name: {icon_name}")
                 icon_file = "icons/" + icon_name
             self.load(icon_file)
             self.resize(100, 100)
