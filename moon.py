@@ -52,7 +52,9 @@ class QMoon(QWidget):
         super(QMoon, self).__init__(parent)
         self.total_images = 8760
         self.moon_domain = "https://svs.gsfc.nasa.gov"
-        self.moon_path = "/vis/a000000/a004800/a004874/"
+        self.moon_path_2021 = "/vis/a000000/a004800/a004874/"
+        # https://svs.gsfc.nasa.gov/vis/a000000/a004900/a004955/frames/216x216_1x1_30p/moon.8597.jpg
+        self.moon_path = "/vis/a000000/a004900/a004955/"
         self.debug = debug
         self.size = size
         self.get_from_web = web
