@@ -706,9 +706,9 @@ if __name__ == '__main__':
         weather.show()
 
     sys.exit(app.exec_())
-else:
-    app = QApplication()
-    widget = QWidget()
-    widget.resize(250, 200)
-    weather = QWeather()
-
+# else:
+#     app = QApplication()
+#     widget = QWidget()
+#     widget.resize(250, 200)
+#     weather = QWeather()
+#
