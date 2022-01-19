@@ -222,9 +222,13 @@ class QWeatherIcon(QSvgWidget):
 class QWeather(QWidget, QObject):
     """Simple Weather reporter window."""
     Weather_gov_url = "https://api.weather.gov/points/"
-    GEO_Point_Freeport = (43.8672, -70.0968)  # South Freeport
-    GEO_Point_Yarmouth = (43.8365, -70.1635)  # Yarmouth
-    GEO_Point_Portland_Airport = (43.64222, -70.30444)  # Portland Airport weather station
+    geo_point_freeport = (43.8672, -70.0968)  # South Freeport
+    geo_point_yarmouth = (43.8365, -70.1635)  # Yarmouth
+    geo_point_portland_airport = (43.64222, -70.30444)  # Portland Airport weather station
+    geo_points = [geo_point_freeport, geo_point_yarmouth, geo_point_portland_airport]
+    geo_points_name = ["Freeport", "Yarmouth", "Portland airport"]
+    geo_point = geo_points[0]
+    geo_point_i = 0
 
     # Signals we emit.
     temp_updated = Signal()
@@ -255,7 +259,8 @@ class QWeather(QWidget, QObject):
         self.request_headers = {
             'User-Agent': '(QtWeatherApp, holtrop@physics.unh.edu)',
             'From': 'holtrop@physics.unh.edu',
-            'Cache-Control': 'no-cache'
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache"
         }
 
         self.time_zone = tz.gettz('America/New_York')
@@ -358,6 +363,8 @@ class QWeather(QWidget, QObject):
     def get_weather_json(self, point):
         """Get the top level weather JSOn from the weather.gov website for GEO location point"""
         url = self.Weather_gov_url + "{:.4f},{:.4f}".format(point[0], point[1])
+        if self.debug > 2:
+            print(f"Top level url: {url}")
         js = requests.get(url, headers=self.request_headers).json()
         if js is None or 'properties' not in js:
             print("Did not get top level weather request.")
@@ -372,7 +379,7 @@ class QWeather(QWidget, QObject):
             if point is not None:
                 top_level_json = self.get_weather_json(point)
             else:
-                top_level_json = self.get_weather_json(self.GEO_Point_Freeport)
+                top_level_json = self.get_weather_json(self.geo_point)
 
         if top_level_json is None:
             return None
@@ -389,6 +396,11 @@ class QWeather(QWidget, QObject):
             return None
 
         payload = {"units": "si"}
+        if self.debug > 2:
+            print(f"forecast url {url}")
+            print(f"forecast payload: {payload}")
+            print(f"headers: {self.request_headers}")
+
         try:
             js = requests.get(url, params=payload, headers=self.request_headers).json()
         except Exception as e:
@@ -411,7 +423,8 @@ class QWeather(QWidget, QObject):
         self.weather_text.clear()
 #        self.weather_text.insertPlainText(text)
         self.weather_text.insertHtml(text)
-        self.weather_forecast_time.setText(self.fc_time.strftime('Forecast: %Y-%m-%d %H:%M'))
+        self.weather_forecast_time.setText(self.fc_time.strftime('Forecast: %Y-%m-%d %H:%M')+' '+
+                                           self.geo_points_name[self.geo_point_i])
 
 
     def update_weather(self):
@@ -421,11 +434,26 @@ class QWeather(QWidget, QObject):
         old_fc = self.fc
         if self.w_update <= 0:
             self.w_update = self.w_update_interval
-            new_fc = self.get_weather_forecast(self.GEO_Point_Freeport, kind="forecast")
+            new_fc = self.get_weather_forecast(self.geo_point, kind="forecast")
             if new_fc is None:
-                # Do not change the text and do not emit an "updated"
-                self.w_update = 360  # Try again in 3 minutes.
+                if self.debug:
+                    print("Failed to get weather update.")
+                self.w_update = 360
                 return
+            else:
+                new_fc_time = datetime.fromisoformat(new_fc['properties']['updateTime']).astimezone(self.time_zone)
+                now = datetime.now().astimezone(self.time_zone)
+                new_fc_age = (now-new_fc_time).total_seconds()
+                if new_fc_age > 8*60*60:  # Stale forecast if older than 8 hours.
+                    # Do not change the text and do not emit an "updated"
+                    self.w_update = 36 # 0    # Try again in 3 minutes.
+                    self.geo_point_i += 1  # Get from another point nearby.
+                    if self.geo_point_i >= len(self.geo_points):
+                        self.geo_point_i = 0
+                    self.geo_point = self.geo_points[self.geo_point_i]
+                    if self.debug:
+                        print(f"Update failed. Trying next point nr {self.geo_point_i}")
+                    return
 
             try:
 
@@ -529,24 +557,24 @@ class QWeather(QWidget, QObject):
 
         if self.zmq_request_made:
             socks = dict(self.zqm_poll.poll(2))
-            if self.debug > 2:
+            if self.debug > 3:
                 print("Polling, ")
             if self.zmq_socket in socks and socks[self.zmq_socket] == zmq.POLLIN:
-                if self.debug > 2:
+                if self.debug > 3:
                     print("Got a poll reply.")
                 mess = self.zmq_socket.recv(zmq.DONTWAIT)
-                if self.debug > 2:
+                if self.debug > 3:
                     print(mess)
                 self.temp_data = list(map(smart_float, mess[1:-1].decode().split(',')))
                 self.n_updates = self.temp_update_interval
                 self.temp_data_valid = True
                 self.zmq_request_made = False
-                if self.debug > 1:
+                if self.debug > 3:
                     print("temp_updated.emit()")
                 self.temp_updated.emit()
             elif self.n_updates < -1:
                 self.temp_data_valid = False
-                if self.debug > 2:
+                if self.debug > 3:
                     print("nothing, n_updates = ", self.n_updates)
                 self.temp_updated.emit()
 
@@ -678,3 +706,9 @@ if __name__ == '__main__':
         weather.show()
 
     sys.exit(app.exec_())
+else:
+    app = QApplication()
+    widget = QWidget()
+    widget.resize(250, 200)
+    weather = QWeather()
+
