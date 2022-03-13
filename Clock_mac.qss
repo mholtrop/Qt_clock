@@ -1,7 +1,7 @@
 /*-----QWidget-----*/
 QWidget
 {
-	background-color: qlineargradient(spread:pad, x1:0.306, y1:0.0625, x2:0.352, y2:1, stop:0.5 rgba(25, 0, 25, 255), stop:1 rgba(100, 0, 100, 255));
+	background-color: qlineargradient(spread:pad, x1:0.306, y1:0.0625, x2:0.352, y2:1, stop:0.5 rgba(20, 0, 20, 255), stop:1 rgba(75, 0, 125, 255));
 	color: #000055;
 	selection-background-color: #b78620;
 	selection-color: #000;
@@ -55,9 +55,10 @@ QTabBar::tab {
 	padding: 5px;
 	padding-left: 10px;
 	padding-right: 10px;
+	font-family: "Gill Sans";
 	font-weight: bold;
 	font-style: italic;
-	font-size: 8pt;
+	font-size: 12pt;
 }
 
 QTabWidget::tab-bar {
@@ -140,8 +141,6 @@ QPushButton#prev{
 	margin-left: 10px;
 	border-radius: 2px;
 }
-
-
 
 QPushButton::flat
 {

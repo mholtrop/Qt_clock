@@ -56,6 +56,7 @@ QTabBar::tab {
 	padding-left: 10px;
 	padding-right: 10px;
 	font-weight: bold;
+	font-family: "Gill Sans";
 	font-style: italic;
 	font-size: 16pt;
 	height: 20px;
