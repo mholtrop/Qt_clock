@@ -13,10 +13,11 @@ import json
 #
 # Example conversion to datetime: datetime.fromisoformat(wjson['properties']['updateTime'])
 #
-from PySide2.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QTextEdit, QTextEdit, QPushButton
-from PySide2.QtGui import QFont, QColor, QPixmap, QCursor
-from PySide2.QtCore import Qt, QObject, QFile, Signal, Slot, QRect, QCoreApplication, QTimer
-from PySide2.QtSvg import QSvgWidget
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QTextEdit, QTextEdit, QPushButton
+from PySide6.QtGui import QFont, QColor, QPixmap, QCursor
+from PySide6.QtCore import Qt, QObject, QFile, Signal, Slot, QRect, QCoreApplication, QTimer
+# from PySide2.QtSvg import QSvgWidget
+from PySide6.QtSvgWidgets import QSvgWidget
 
 import signal
 import qt_clock_rc

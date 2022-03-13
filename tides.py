@@ -12,8 +12,8 @@ import json
 #
 # Example conversion to datetime: datetime.fromisoformat(wjson['properties']['updateTime'])
 #
-from PySide2.QtWidgets import QApplication, QFrame, QTextEdit
-from PySide2.QtCore import Qt, QFile, Slot, QTimer
+from PySide6.QtWidgets import QApplication, QFrame, QTextEdit
+from PySide6.QtCore import Qt, QFile, Slot, QTimer
 import signal
 import qt_clock_rc
 
@@ -22,7 +22,7 @@ class Tides:
     def __init__(self):
         self.base_url = "https://tidesandcurrents.noaa.gov/api/datagetter"
         self.timezone = "lst_ldt"  # Local time.
-        self.station_dict={
+        self.station_dict = {
             "portland": 8418150,
             "popham": 8417177,
             "old orchard": 8418557,

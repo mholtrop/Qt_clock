@@ -3,8 +3,8 @@
 # Python port of the Qt_clock C++ app.
 #
 #
-from PySide2.QtWidgets import QApplication
-from PySide2.QtCore import QFile, QJsonDocument
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QFile, QJsonDocument
 
 from clock_widget import Clock_widget
 import qt_clock_rc
@@ -39,6 +39,7 @@ def _interrupt_handler(signum, frame):
 #             QtCore.QTimer.singleShot(timeout, timer_event)
 #     QtCore.QTimer.singleShot(timeout, timer_event)
 
+
 if __name__ == '__main__':
     import sys
     import os
@@ -54,7 +55,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser("Qt based Clock program for Raspberry Pi")
     parser.add_argument("--debug", "-d", action="count", help="Increase debug level.", default=0)
-    parser.add_argument("--style", "-s", type=str, help="Use specified style sheet.", default=None)
+    parser.add_argument("--sfile", "-s", type=str, help="Use specified style sheet file.", default=None)
     parser.add_argument("--frameless", "-fl", action="store_true", help="Make a frameless window.")
     parser.add_argument("--web", action="store_true", help="Make get moon from web.")
 
@@ -66,11 +67,11 @@ if __name__ == '__main__':
     clock = Clock_widget(args.frameless, web=args.web, debug=args.debug)
 
     file = None
-    if args.style is None:
+    if args.sfile is None:
 #        file = QFile(":/Clock.qss")
         file = QFile("Clock.qss")
     else:
-        file = QFile(args.style)
+        file = QFile(args.sfile)
 
     file.open(QFile.ReadOnly)
     style_sheet = file.readAll()
@@ -97,4 +98,4 @@ if __name__ == '__main__':
         clock.setup_from_json(json)
 
     clock.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

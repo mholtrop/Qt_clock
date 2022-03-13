@@ -7,10 +7,10 @@
 #
 import os
 import zmq
-from PySide2.QtWidgets import QMainWindow, QSizePolicy, QTabWidget, QWidget, QLabel, QPushButton, QTimeEdit, \
+from PySide6.QtWidgets import QMainWindow, QSizePolicy, QTabWidget, QWidget, QLabel, QPushButton, QTimeEdit, \
     QLCDNumber, QSlider, QCheckBox, QSpinBox
-from PySide2.QtGui import QColor, QFont, QPainter, QPolygon
-from PySide2.QtCore import Qt, Slot, QTimer, QDateTime, QTime, QRect, QCoreApplication, QPoint
+from PySide6.QtGui import QColor, QFont, QPainter, QPolygon
+from PySide6.QtCore import Qt, Slot, QTimer, QDateTime, QTime, QRect, QCoreApplication, QPoint
 
 from weather import QWeather, QTempMiniPanel, QWeatherIcon
 from moon import QMoon
@@ -157,7 +157,7 @@ class Clock_widget(QMainWindow):
         font8.setPointSize(16)
         font8.setBold(False)
         font8.setItalic(False)
-        font8.setWeight(50)
+        font8.setWeight(QFont.Normal)
         self.timeEdit.setFont(font8)
         self.timeEdit.setAutoFillBackground(True)
         self.timeEdit.setTime(self.bedtime)
@@ -190,7 +190,7 @@ class Clock_widget(QMainWindow):
         font10.setFamily(u"Arial Black")
         font10.setPointSize(12)
         font10.setBold(True)
-        font10.setWeight(75)
+        font10.setWeight(QFont.Bold)
         self.Brightness_label.setFont(font10)
         self.temp_test = QLabel(self.settings)
         self.temp_test.setObjectName(u"temp_test")

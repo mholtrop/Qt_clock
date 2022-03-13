@@ -39,9 +39,9 @@
 
 from datetime import datetime
 
-from PySide2.QtWidgets import QApplication, QWidget, QLabel
-from PySide2.QtGui import QPixmap, QImage
-from PySide2.QtCore import Qt, QFile, Slot, QTimer, QRect
+from PySide6.QtWidgets import QApplication, QWidget, QLabel
+from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtCore import Qt, QFile, Slot, QTimer, QRect
 import requests
 
 
