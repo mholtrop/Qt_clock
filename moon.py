@@ -38,9 +38,10 @@
 # Get moon images locally with:
 # cd moon
 # wget -nc -w 1 -nd -r  https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004874/frames/216x216_1x1_30p
-#
+# wget -nc -w 1 -nd -r  https://svs.gsfc.nasa.gov/vis/a000000/a005100/a005187/frames/216x216_1x1_30p
 
 from datetime import datetime
+import dateutil.parser as datparser
 
 from PySide2.QtWidgets import QApplication, QWidget, QLabel
 from PySide2.QtGui import QPixmap, QImage
@@ -51,18 +52,22 @@ import requests
 class QMoon(QWidget):
     """Small widget displays today's moon."""
 
-    def __init__(self, pos=(0, 0), parent=None, size=216, web=False, save=False, debug=0):
+    def __init__(self, pos=(0, 0), parent=None, date=None, size=216, web=False, save=False, debug=0):
         super(QMoon, self).__init__(parent)
         self.total_images = 8760
         self.moon_domain = "https://svs.gsfc.nasa.gov"
         self.moon_path_2021 = "/vis/a000000/a004800/a004874/"
+        self.moon_path_2022 = "/vis/a000000/a004900/a004955/"
+        self.moon_path_2023 = "/vis/a000000/a005000/a005048/"
+        self.moon_path_2024 = "/vis/a000000/a005100/a005187/"
         # https://svs.gsfc.nasa.gov/vis/a000000/a004900/a004955/frames/216x216_1x1_30p/moon.8597.jpg
-        self.moon_path = "/vis/a000000/a005000/a005048/"  # 2022: "/vis/a000000/a004900/a004955/"
+        self.moon_path = "/vis/a000000/a005100/a005187"   #
         self.debug = debug
         self.size = size
         self.get_from_web = web
         self.save = save
         # self.setGeometry(pos[0], pos[1], self.size, self.size)
+        self.date = date
         self.moon = QLabel(self)
         self.moon.setGeometry(pos[0], pos[1], self.size, self.size)
         self.update()
@@ -85,9 +90,14 @@ class QMoon(QWidget):
         #
         # Conversion from the jscript.
         #
-        now = datetime.utcnow()
+        if self.date is None:
+            now = datetime.utcnow()
+        else:
+            now = self.date
+        if self.debug:
+            print(f"Using date: {now}")
         janone = datetime(now.year, 1, 1, 0, 0, 0)
-        self.moon_image_number = round((datetime.utcnow() - janone).total_seconds() / 3600)
+        self.moon_image_number = round((now - janone).total_seconds() / 3600)
         return self.moon_image_number <= self.total_images
 
     def get_moon_image(self):
@@ -133,7 +143,7 @@ class QMoon(QWidget):
             return pix
 
 
-if __name__ == '__main__':
+def main():
     import sys
     import argparse
     import signal
@@ -160,6 +170,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser("Qt based Clock program for Raspberry Pi")
     parser.add_argument("--debug", "-d", action="count", help="Increase debug level.", default=0)
+    parser.add_argument("--date", "-D", type=str, help="Use specified date.", default=None)
     parser.add_argument("--style", "-S", type=str, help="Use specified style sheet.", default=None)
     parser.add_argument("--frameless", "-fl", action="store_true", help="Make a frameless window.")
     parser.add_argument("--size", "-s", type=int, help="Size of the image to display", default=216)
@@ -179,6 +190,17 @@ if __name__ == '__main__':
     # print(style_sheet.data().decode("utf-8"))
     app.setStyleSheet(style_sheet.data().decode("utf-8"))
 
-    moon = QMoon(size=args.size, debug=args.debug, save=True)
+    if args.date is not None:
+        date_check = datparser.parse(args.date)
+        if args.debug > 0:
+            print("Date to use: ", date_check)
+    else:
+        date_check = None
+
+    moon = QMoon(size=args.size, date=date_check, debug=args.debug, save=True)
     moon.show()
     sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()
