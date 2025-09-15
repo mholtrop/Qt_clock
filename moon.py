@@ -47,6 +47,7 @@ from PySide2.QtWidgets import QApplication, QWidget, QLabel
 from PySide2.QtGui import QPixmap, QImage
 from PySide2.QtCore import Qt, QFile, Slot, QTimer, QRect
 import requests
+import os
 
 
 class QMoon(QWidget):
@@ -55,13 +56,14 @@ class QMoon(QWidget):
     def __init__(self, pos=(0, 0), parent=None, date=None, size=216, web=False, save=False, debug=0):
         super(QMoon, self).__init__(parent)
         self.total_images = 8760
-        self.moon_domain = "https://svs.gsfc.nasa.gov"
+        self.moon_domain = "https://svs.gsfc.nasa.gov" # "https://svs.gsfc.nasa.gov"
         self.moon_path_2021 = "/vis/a000000/a004800/a004874/"
         self.moon_path_2022 = "/vis/a000000/a004900/a004955/"
         self.moon_path_2023 = "/vis/a000000/a005000/a005048/"
         self.moon_path_2024 = "/vis/a000000/a005100/a005187/"
+        self.moon_path_2025 = "/vis/a000000/a005400/a005415/"
         # https://svs.gsfc.nasa.gov/vis/a000000/a004900/a004955/frames/216x216_1x1_30p/moon.8597.jpg
-        self.moon_path = "/vis/a000000/a005100/a005187"   #
+        self.moon_path = "/vis/a000000/a005400/a005415/"   #
         self.debug = debug
         self.size = size
         self.get_from_web = web
@@ -98,6 +100,8 @@ class QMoon(QWidget):
             print(f"Using date: {now}")
         janone = datetime(now.year, 1, 1, 0, 0, 0)
         self.moon_image_number = round((now - janone).total_seconds() / 3600)
+        if self.debug:
+            print(f"Moon_image_number: {self.moon_image_number}")
         return self.moon_image_number <= self.total_images
 
     def get_moon_image(self):
@@ -105,10 +109,15 @@ class QMoon(QWidget):
         if not self.get_moon_image_number():
             print("Could not get the moon. Are we in a new year?")
 
+        moon_file = f"moon/moon.{self.moon_image_number:04d}.jpg"
+        if not os.path.exists(moon_file):
+            self.get_from_web = True
+
         if self.debug:
             print(f"We are using moon image number: {self.moon_image_number}")
         if self.size > 500 or self.get_from_web:
 
+            extension = "tif"
             if self.size > 2160:
                 url = self.moon_domain+self.moon_path+"/frames/5760x3240_16x9_30p/" \
                       f"plain/moon.{self.moon_image_number:04d}.tif"
@@ -118,17 +127,20 @@ class QMoon(QWidget):
             else:
                 url = self.moon_domain + self.moon_path + "/frames/216x216_1x1_30p/" \
                                                       f"moon.{self.moon_image_number:04d}.jpg"
+                extension = "jpg"
 
             if self.debug:
                 print(f"Getting image from url: {url}")
             req = requests.get(url)
+            if self.debug:
+                print(f"Request status code: {req.status_code}")
             self.image = QImage()
-            self.image.loadFromData(req.content, "tiff")
+            self.image.loadFromData(req.content, extension)
             size = self.image.size()
             if self.debug:
                 print("Image size: ", size)
             if self.save:
-                self.image.save(f"moon/moon.{self.moon_image_number:04d}.tiff")
+                self.image.save(f"moon/moon.{self.moon_image_number:04d}.{extension}")
 
             offset = (size.width() - size.height())/2
             rect = QRect(offset, 0, size.height(), size.height())
@@ -137,7 +149,7 @@ class QMoon(QWidget):
             pix = pix.scaled(self.size, self.size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
             return pix
         else:
-            moon_file = f"moon/moon.{self.moon_image_number:04d}.jpg"
+
             pix = QPixmap(moon_file)
             pix = pix.scaled(self.size, self.size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
             return pix
@@ -197,7 +209,8 @@ def main():
     else:
         date_check = None
 
-    moon = QMoon(size=args.size, date=date_check, debug=args.debug, save=True)
+
+    moon = QMoon(size=args.size, date=date_check, debug=args.debug, web=args.web, save=True)
     moon.show()
     sys.exit(app.exec_())
 
