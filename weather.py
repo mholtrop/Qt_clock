@@ -6,7 +6,9 @@ import requests
 import zmq
 import re
 import json
-
+#
+# Weather API: https://api.weather.gov
+#
 # Note on the Weather.gov JSON.
 #
 # The times are all in UTC.
@@ -225,8 +227,9 @@ class QWeather(QWidget, QObject):
     geo_point_freeport = (43.8672, -70.0968)  # South Freeport
     geo_point_yarmouth = (43.8365, -70.1635)  # Yarmouth
     geo_point_portland_airport = (43.64222, -70.30444)  # Portland Airport weather station
-    geo_points = [geo_point_freeport, geo_point_yarmouth, geo_point_portland_airport]
-    geo_points_name = ["Freeport", "Yarmouth", "Portland airport"]
+    geo_point_durham_nh = (43.1340,-70.9264)  # Durham
+    geo_points = [geo_point_durham_nh, geo_point_freeport, geo_point_yarmouth, geo_point_portland_airport]
+    geo_points_name = ["Durham", "Freeport", "Yarmouth", "Portland airport"]
     geo_point = geo_points[0]
     geo_point_i = 0
 
