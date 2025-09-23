@@ -27,7 +27,7 @@ class Clock_widget(QMainWindow):
         self.analog = None
         self.bedtime = QTime(20, 15, 00)
         self.bedtime_grace_period = 10
-        self.LEDBall_state = 0
+        #self.LEDBall_state = 0
         self.temp_update_interval = 10
         self.n_updates = 0
 
@@ -121,20 +121,20 @@ class Clock_widget(QMainWindow):
         push_button_x = 670
         push_button_y = 220
 
-        self.ledball_off = QPushButton(self.clock)
-        self.ledball_off.setObjectName(u"ledball_off")
-        self.ledball_off.setText(u"LED off")
-        self.ledball_off.setGeometry(QRect(push_button_x, push_button_y, push_button_width, push_button_height))
-
-        self.ledball_on = QPushButton(self.clock)
-        self.ledball_on.setObjectName(u"ledball_on")
-        self.ledball_on.setText(u"LED on ")
-        self.ledball_on.setGeometry(QRect(push_button_x, push_button_y+push_button_height, push_button_width, push_button_height))
-
-        self.ledball_on2 = QPushButton(self.clock)
-        self.ledball_on2.setObjectName(u"ledball_on2")
-        self.ledball_on2.setText(u"LED on 2")
-        self.ledball_on2.setGeometry(QRect(push_button_x, push_button_y+push_button_height*2, push_button_width, push_button_height))
+        # self.ledball_off = QPushButton(self.clock)
+        # self.ledball_off.setObjectName(u"ledball_off")
+        # self.ledball_off.setText(u"LED off")
+        # self.ledball_off.setGeometry(QRect(push_button_x, push_button_y, push_button_width, push_button_height))
+        #
+        # self.ledball_on = QPushButton(self.clock)
+        # self.ledball_on.setObjectName(u"ledball_on")
+        # self.ledball_on.setText(u"LED on ")
+        # self.ledball_on.setGeometry(QRect(push_button_x, push_button_y+push_button_height, push_button_width, push_button_height))
+        #
+        # self.ledball_on2 = QPushButton(self.clock)
+        # self.ledball_on2.setObjectName(u"ledball_on2")
+        # self.ledball_on2.setText(u"LED on 2")
+        # self.ledball_on2.setGeometry(QRect(push_button_x, push_button_y+push_button_height*2, push_button_width, push_button_height))
 
         self.sleep = QPushButton(self.clock)
         self.sleep.setObjectName(u"sleep")
@@ -232,9 +232,9 @@ class Clock_widget(QMainWindow):
 
         # if QT_CONFIG(tooltip)
         self.sleep.setToolTip(u"Put display to sleep")
-        self.ledball_on2.setToolTip(u"Turn on the LED Ball, mode 2")
-        self.ledball_on.setToolTip(u"Turn on the LED Ball.")
-        self.ledball_off.setToolTip(u"Turn off the LED Ball.")
+        # self.ledball_on2.setToolTip(u"Turn on the LED Ball, mode 2")
+        # self.ledball_on.setToolTip(u"Turn on the LED Ball.")
+        # self.ledball_off.setToolTip(u"Turn off the LED Ball.")
         # endif // QT_CONFIG(tooltip)
 
         #################################################################################################
@@ -244,9 +244,9 @@ class Clock_widget(QMainWindow):
         self.temp_test_slide.valueChanged.connect(self.test_temp_update)
         self.temp_check_outside.clicked.connect(self.test_temp_update)
 
-        self.ledball_off.clicked.connect(self.set_ledball_off)
-        self.ledball_on.clicked.connect(self.set_ledball_on)
-        self.ledball_on2.clicked.connect(self.set_ledball_on2)
+        # self.ledball_off.clicked.connect(self.set_ledball_off)
+        # self.ledball_on.clicked.connect(self.set_ledball_on)
+        # self.ledball_on2.clicked.connect(self.set_ledball_on2)
         self.sleep.clicked.connect(self.set_sleep)
 
         self.timeEdit.timeChanged.connect(self.set_bedtime)
@@ -290,63 +290,63 @@ class Clock_widget(QMainWindow):
             self.Digital.setStyleSheet("color: rgba(200,100,0,200)")
             self.Digital.setText(text + " Bedtime")
 
-        if self.bedtime < time < self.bedtime.addSecs(1) and self.LEDBall_state > 0:
-            self.set_ledball_ready_for_bed()
+        #if self.bedtime < time < self.bedtime.addSecs(1) and self.LEDBall_state > 0:
+        #    self.set_ledball_ready_for_bed()
 
         if self.bedtime.addSecs(self.bedtime_grace_period*60) < time < \
                 self.bedtime.addSecs(self.bedtime_grace_period*60 + 1):
             self.Digital.setStyleSheet("")
-            self.set_ledball_off()
+        #    self.set_ledball_off()
             self.turn_off_lcd()
 
 
-    @Slot()
-    def set_ledball_off(self):
-        """Turn off the LED ball."""
-        if self.debug > 0:
-            print("Set LED ball off.")
-
-        os.system("ssh bbb1 \"./LEDBall_off.py\" >/dev/null")
-        self.LEDBall_state = 0
-
-    @Slot()
-    def set_ledball_ready_for_bed(self):
-        """Set LED ball to very red."""
-        if self.LEDBall_state != 3:
-            if self.debug > 0:
-                print("Set LED ball to ready for bed.")
-            os.system("ssh bbb1 \"./LEDBall_off.py && ./matrix.py 200 5.\" >/dev/null ")
-            self.LEDBall_state = 3
-
-    @Slot()
-    def set_ledball_on(self):
-        """Turn LED ball to normal on"""
-        if self.debug > 0:
-            print("Set LED ball on.")
-
-        os.system("(ssh bbb1 \"./LEDBall_off.py && ./matrix.py 200\" >/dev/null)")
-        self.LEDBall_state = 1
-
-    @Slot()
-    def set_ledball_on2(self):
-        """Turn LED ball to alternate on"""
-        if self.debug > 0:
-            print("Set LED ball alternate on.")
-
-        os.system("(ssh bbb1 \"./LEDBall_off.py && ./matrix.py 300 3. 50\" >/dev/null)");
-        self.LEDBall_state = 2
+    # @Slot()
+    # def set_ledball_off(self):
+    #     """Turn off the LED ball."""
+    #     if self.debug > 0:
+    #         print("Set LED ball off.")
+    #
+    #     os.system("ssh bbb1 \"./LEDBall_off.py\" >/dev/null")
+    #     self.LEDBall_state = 0
+    #
+    # @Slot()
+    # def set_ledball_ready_for_bed(self):
+    #     """Set LED ball to very red."""
+    #     if self.LEDBall_state != 3:
+    #         if self.debug > 0:
+    #             print("Set LED ball to ready for bed.")
+    #         os.system("ssh bbb1 \"./LEDBall_off.py && ./matrix.py 200 5.\" >/dev/null ")
+    #         self.LEDBall_state = 3
+    #
+    # @Slot()
+    # def set_ledball_on(self):
+    #     """Turn LED ball to normal on"""
+    #     if self.debug > 0:
+    #         print("Set LED ball on.")
+    #
+    #     os.system("(ssh bbb1 \"./LEDBall_off.py && ./matrix.py 200\" >/dev/null)")
+    #     self.LEDBall_state = 1
+    #
+    # @Slot()
+    # def set_ledball_on2(self):
+    #     """Turn LED ball to alternate on"""
+    #     if self.debug > 0:
+    #         print("Set LED ball alternate on.")
+    #
+    #     os.system("(ssh bbb1 \"./LEDBall_off.py && ./matrix.py 300 3. 50\" >/dev/null)");
+    #     self.LEDBall_state = 2
 
     @Slot()
     def set_sleep(self):
-        self.set_ledball_off()
+        # self.set_ledball_off()
         self.turn_off_lcd()
 
     def turn_off_lcd(self):
         """Turn the LCD off with the DPMS."""
         if os.uname().sysname == "Linux":
-            os.system("/usr/bin/xset dpms force off");
+            os.system("/usr/bin/xset dpms force off")
 
-    def set_pressure_color(selfs, obj, press, valid = True):
+    def set_pressure_color(selfs, obj, press, valid=True):
         """Set the color of obj according to the pressure. """
         pressures = (900., 950., 1000., 1020., 1040.)
         colors = (0, 60, 120, 240, 300)

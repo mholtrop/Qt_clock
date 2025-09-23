@@ -136,16 +136,22 @@ class QTempMiniPanel:
             return
 
         try:
-            self.inside_temp.setText("{:5.2f} C  {:5.1f} %".format(self.weather.temp_data[1],
-                                                                   self.weather.temp_data[3]))
-            QWeather.set_temp_color(self.inside_temp, self.weather.temp_data[1], True,
+            if "inside_temp" in self.weather.temp_data and "inside_humidity" in self.weather.temp_data:
+                self.inside_temp.setText(f"{self.weather.temp_data['inside_temp']:5.2f} C  {'inside_humidity':5.1f} %")
+                QWeather.set_temp_color(self.inside_temp, self.weather.temp_data['inside_temp'], True,
                                     not self.weather.temp_data_valid)
-            self.outside_temp.setText("{:5.2f} C  {:5.1f} %".format(self.weather.temp_data[5],
-                                                                    self.weather.temp_data[7]))
-            QWeather.set_temp_color(self.outside_temp, self.weather.temp_data[5], False,
+            else:
+                QWeather.set_temp_color(self.inside_temp, -999., True, True)
+
+            if "outside_temp" in self.weather.temp_data and "outside_humidity" in self.weather.temp_data:
+                self.outside_temp.setText(f"{self.weather.temp_data['outside_temp']:5.2f} C  {self.weather.temp_data['outside_humidity']:5.1f} %")
+                QWeather.set_temp_color(self.outside_temp, self.weather.temp_data['outside_temp'], False,
                                     not self.weather.temp_data_valid)
-            self.pressure.setText("{:7.2f} mbar".format(self.weather.temp_data[2]))
-            QWeather.set_pressure_color(self.pressure, self.weather.temp_data[2], self.weather.temp_data_valid)
+                self.pressure.setText(f"{self.weather.temp_data['outside_pressure']/100:7.2f} mbar")
+                QWeather.set_pressure_color(self.pressure, self.weather.temp_data['outside_pressure']/100, self.weather.temp_data_valid)
+            else:
+                QWeather.set_temp_color(self.outside_temp, self.weather.temp_data['outside_temp'], False, True)
+
         except Exception as e:
             print("Exception while updating minipanel.")
 
@@ -205,15 +211,17 @@ class QWeatherIcon(QSvgWidget):
             # icon_url is something like:
             # "https://api.weather.gov/icons/land/day/sct?size=medium"
             match = re.match("https://api\.weather\.gov/icons/(.*)/(.*)/([a-z_]*).*", icon_url)
-            print(f"{datetime.now()} - Update icon for: '{condition}'  url: {icon_url}  match: {match.group(3)}")
+            if self.weather.debug > 0:
+                print(f"{datetime.now()} - Update icon for: '{condition}'  url: {icon_url}  match: {match.group(3)}")
             if not match or not match.group(3) in self.WEATHER_ICONS:
                 print("Icon does not exist for match {} condition: {}".format(match.group(3), condition))
                 icon_file = "icons/unknown.svg"
             else:
                 # TODO: Refine this for night/day icons.
                 icon_name = self.WEATHER_ICONS[match.group(3)][0]
-                print(f"Icon name: {icon_name}")
-                print(f"Icon match {match.group(3)}  = name: {icon_name}")
+                if self.weather.debug > 0:
+                    print(f"Icon name: {icon_name}")
+                    print(f"Icon match {match.group(3)}  = name: {icon_name}")
                 icon_file = "icons/" + icon_name
             self.load(icon_file)
             self.resize(100, 100)
@@ -227,7 +235,7 @@ class QWeather(QWidget, QObject):
     geo_point_freeport = (43.8672, -70.0968)  # South Freeport
     geo_point_yarmouth = (43.8365, -70.1635)  # Yarmouth
     geo_point_portland_airport = (43.64222, -70.30444)  # Portland Airport weather station
-    geo_point_durham_nh = (43.1340,-70.9264)  # Durham
+    geo_point_durham_nh = (43.1340, -70.9264)  # Durham
     geo_points = [geo_point_durham_nh, geo_point_freeport, geo_point_yarmouth, geo_point_portland_airport]
     geo_points_name = ["Durham", "Freeport", "Yarmouth", "Portland airport"]
     geo_point = geo_points[0]
@@ -250,7 +258,7 @@ class QWeather(QWidget, QObject):
 
         self.temp_update_interval = 60  # Once per minute
         self.n_updates = 1
-        self.temp_data = [-99.9]*11
+        self.temp_data = {}
         self.temp_data_valid = False
 
         self.w_update_interval = 60*60  # Once per hour.
@@ -270,12 +278,12 @@ class QWeather(QWidget, QObject):
         self.fc = None   # Stores the dict of the weather forecast.
         self.fc_time = None  # Stores the forecast time
 
-        self.zmq_context = zmq.Context()
-        self.zmq_socket = self.zmq_context.socket(zmq.REQ)
-        self.zmq_socket.connect("tcp://bbb1:5555")
-        self.zmq_request_made = False
-        self.zqm_poll = zmq.Poller()
-        self.zqm_poll.register(self.zmq_socket, zmq.POLLIN)
+        # self.zmq_context = zmq.Context()
+        # self.zmq_socket = self.zmq_context.socket(zmq.REQ)
+        # self.zmq_socket.connect("tcp://bbb1:5555")
+        # self.zmq_request_made = False
+        # self.zqm_poll = zmq.Poller()
+        # self.zqm_poll.register(self.zmq_socket, zmq.POLLIN)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
@@ -356,6 +364,8 @@ class QWeather(QWidget, QObject):
         self.weather_text.insertPlainText("This is a description of the weather for the day that"
                                           "was chosen by clicking on the icon above.")
 
+        self.observation_json = None
+
         # Signal Slot connections.
         self.temp_updated.connect(self.update_temperature_display)
         self.weather_updated.connect(self.update_weather_info)
@@ -365,7 +375,7 @@ class QWeather(QWidget, QObject):
 
     def get_weather_json(self, point):
         """Get the top level weather JSOn from the weather.gov website for GEO location point"""
-        url = self.Weather_gov_url + "{:.4f},{:.4f}".format(point[0], point[1])
+        url = self.Weather_gov_url + f"{point[0]:.4f},{point[1]:.4f}"
         if self.debug > 2:
             print(f"Top level url: {url}")
         js = requests.get(url, headers=self.request_headers).json()
@@ -388,35 +398,50 @@ class QWeather(QWidget, QObject):
             return None
 
         url = ""
-        if kind is None or kind == "forecast":
-            url = top_level_json['properties']['forecast']
-        elif kind == "forecastHourly" or kind == "hourly":
-            url = top_level_json['properties']['forecastHourly']
-        elif kind == "temps" or kind == "detailed_temps" or kind == 'forecastGridData':
-            url = top_level_json['properties']['forecastGridData']
+        if (kind == "forecast" or kind == "forecastHourly" or kind == "hourly" or kind == "temps" or
+                kind == "detailed_temps" or kind == 'forecastGridData'):
+            if kind is None or kind == "forecast":
+                url = top_level_json['properties']['forecast']
+            elif kind == "forecastHourly" or kind == "hourly":
+                url = top_level_json['properties']['forecastHourly']
+            elif kind == "temps" or kind == "detailed_temps" or kind == 'forecastGridData':
+                url = top_level_json['properties']['forecastGridData']
+            else:
+                print("I do not know about the forecast kind=", kind)
+                return None
+
+            payload = {"units": "si"}
+            if self.debug > 2:
+                print(f"forecast url {url}")
+                print(f"forecast payload: {payload}")
+                print(f"headers: {self.request_headers}")
+
+            try:
+                js = requests.get(url, params=payload, headers=self.request_headers).json()
+            except Exception as e:
+                print("Could not get the weather json:", datetime.now())
+                print(e)
+                return None
+
+            if 'properties' not in js:
+                print("Error getting weather information:", datetime.now())
+                print(js['status'])
+                return None
+            else:
+                return js
+
+        elif kind == "current" or kind == "ObservationData":
+            if self.debug > 2:
+                print("Getting the current weather")
+            station_url = top_level_json['properties']['observationStations']
+            station_data = requests.get(station_url).json()
+            observation_station_url = station_data['features'][0]['id'] + '/observations/latest'
+            latest_observation = requests.get(observation_station_url).json()
+
+            return latest_observation
+
         else:
-            print("I do not know about the forecast kind=", kind)
-            return None
-
-        payload = {"units": "si"}
-        if self.debug > 2:
-            print(f"forecast url {url}")
-            print(f"forecast payload: {payload}")
-            print(f"headers: {self.request_headers}")
-
-        try:
-            js = requests.get(url, params=payload, headers=self.request_headers).json()
-        except Exception as e:
-            print("Could not get the weather json:", datetime.now())
-            print(e)
-            return None
-
-        if 'properties' not in js:
-            print("Error getting weather information:", datetime.now())
-            print(js['status'])
-            return None
-        else:
-            return js
+            print("I do not know about the kind of forecast kind=", kind)
 
     def update_weather_text(self):
         """Update the weather text area."""
@@ -540,6 +565,9 @@ class QWeather(QWidget, QObject):
     @Slot()
     def update_temperatures(self):
         """Get a new set of temperatures from bbb1 using zmq."""
+        if self.debug > 1:
+            print(" -- update_temperatures() ")
+
         self.n_updates = self.n_updates - 1
 
         def smart_float(d):
@@ -549,56 +577,87 @@ class QWeather(QWidget, QObject):
                 r = d.replace('"', '')
             return r
 
-
-        if self.n_updates <= 1:  # We take two updates to complete this, so start at 1
-
-            if not self.zmq_request_made:
-                self.zmq_socket.send(b'a')
-                self.zmq_request_made = True
-            else:
-                pass
-
-        if self.zmq_request_made:
-            socks = dict(self.zqm_poll.poll(2))
-            if self.debug > 3:
-                print("Polling, ")
-            if self.zmq_socket in socks and socks[self.zmq_socket] == zmq.POLLIN:
-                if self.debug > 3:
-                    print("Got a poll reply.")
-                mess = self.zmq_socket.recv(zmq.DONTWAIT)
-                if self.debug > 3:
-                    print(mess)
-                self.temp_data = list(map(smart_float, mess[1:-1].decode().split(',')))
-                self.n_updates = self.temp_update_interval
+        if self.n_updates <= 0:
+            try:
+                self.observation_json = self.get_weather_forecast(point=self.geo_point, kind="current")
+                self.temp_data['outside_temp'] = smart_float(self.observation_json['properties']['temperature']['value'])
+                self.temp_data['outside_pressure'] = smart_float(self.observation_json['properties']['seaLevelPressure']['value'])
+                self.temp_data['outside_humidity'] = smart_float(self.observation_json['properties']['relativeHumidity']['value'])
                 self.temp_data_valid = True
-                self.zmq_request_made = False
-                if self.debug > 3:
-                    print("temp_updated.emit()")
+                self.n_updates = self.temp_update_interval
                 self.temp_updated.emit()
-            elif self.n_updates < -1:
+            except:
+                if self.debug > 1:
+                    print("Failed to get weather forecast.")
                 self.temp_data_valid = False
-                if self.debug > 3:
-                    print("nothing, n_updates = ", self.n_updates)
-                self.temp_updated.emit()
+
+        # if self.n_updates <= 1:  # We take two updates to complete this, so start at 1
+        #
+        #     if not self.zmq_request_made:
+        #         self.zmq_socket.send(b'a')
+        #         self.zmq_request_made = True
+        #     else:
+        #         pass
+        #
+        # if self.zmq_request_made:
+        #     socks = dict(self.zqm_poll.poll(2))
+        #     if self.debug > 3:
+        #         print("Polling, ")
+        #     if self.zmq_socket in socks and socks[self.zmq_socket] == zmq.POLLIN:
+        #         if self.debug > 3:
+        #             print("Got a poll reply.")
+        #         mess = self.zmq_socket.recv(zmq.DONTWAIT)
+        #         if self.debug > 3:
+        #             print(mess)
+        #         self.temp_data = list(map(smart_float, mess[1:-1].decode().split(',')))
+        #         self.n_updates = self.temp_update_interval
+        #         self.temp_data_valid = True
+        #         self.zmq_request_made = False
+        #         if self.debug > 3:
+        #             print("temp_updated.emit()")
+        #         self.temp_updated.emit()
+        #     elif self.n_updates < -1:
+        #         self.temp_data_valid = False
+        #         if self.debug > 3:
+        #             print("nothing, n_updates = ", self.n_updates)
+
+
 
     @Slot()
     def update_temperature_display(self):
         """Update the temperature display."""
         if self.debug > 1:
             print("update_temperature_display(). Data is valid = ", self.temp_data_valid)
-        self.inside_temp_2.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[1], self.temp_data[3]))
-        self.set_temp_color(self.inside_temp_2, self.temp_data[1], True, not self.temp_data_valid)
 
-        self.outside_temp_2.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[5], self.temp_data[7]))
-        self.set_temp_color(self.outside_temp_2, self.temp_data[5], False, not self.temp_data_valid)
+        this_data_valid = self.temp_data_valid
+        if "inside_temp" in self.temp_data and "inside_humidity" in self.temp_data:
+            self.inside_temp_2.setText(f"{self.temp_data['inside_temp']:5.2f} C  {self.temp_data['inside_humidity']:5.1f} %")
+            self.set_temp_color(self.inside_temp_2, self.temp_data['inside_temp'], True, not this_data_valid)
+        else:
+            this_data_valid = False
+            self.set_temp_color(self.inside_temp_2, -999., True, not this_data_valid)
 
-        self.closet_temp.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[10], self.temp_data[9]))
-        self.set_temp_color(self.closet_temp, self.temp_data[10], True, not self.temp_data_valid)
+        this_data_valid = self.temp_data_valid
+        if "outside_temp" in self.temp_data and "outside_humidity" in self.temp_data:
+            self.outside_temp_2.setText(f"{self.temp_data['outside_temp']:5.2f} C  {self.temp_data['outside_humidity']:5.1f} %")
+            self.set_temp_color(self.outside_temp_2, self.temp_data['outside_temp'], False, not this_data_valid)
+        else:
+            this_data_valid = False
+            self.set_temp_color(self.outside_temp_2, -999., False, not this_data_valid)
 
-        self.pressure_2.setText("{:7.2f} mbar".format(self.temp_data[2]))
-        self.set_pressure_color(self.pressure_2, self.temp_data[2], self.temp_data_valid)
-        self.pressure_3.setText("{:7.2f} mbar".format(self.temp_data[6]))
-        self.set_pressure_color(self.pressure_3, self.temp_data[6], self.temp_data_valid)
+        #self.closet_temp.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[10], self.temp_data[9]))
+        #self.set_temp_color(self.closet_temp, self.temp_data[10], True, not self.temp_data_valid)
+
+        this_data_valid = self.temp_data_valid
+        if "outside_pressure" in self.temp_data:
+            self.pressure_3.setText(f"{self.temp_data['outside_pressure']/100:7.2f} mbar")
+            self.set_pressure_color(self.pressure_3, self.temp_data['outside_pressure']/100, this_data_valid)
+        else:
+            this_data_valid = False
+            self.set_pressure_color(self.pressure_3, -999., this_data_valid)
+
+        # self.pressure_3.setText("{:7.2f} mbar".format(self.temp_data[6]))
+        # self.set_pressure_color(self.pressure_3, self.temp_data[6], self.temp_data_valid)
 
     @staticmethod
     def set_pressure_color(obj, press, valid = True):
