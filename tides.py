@@ -3,7 +3,6 @@
 from datetime import datetime, timedelta
 from dateutil import tz
 import requests
-import zmq
 import json
 
 # Note on the Weather.gov JSON.
@@ -12,8 +11,8 @@ import json
 #
 # Example conversion to datetime: datetime.fromisoformat(wjson['properties']['updateTime'])
 #
-from PySide2.QtWidgets import QApplication, QFrame, QTextEdit
-from PySide2.QtCore import Qt, QFile, Slot, QTimer
+from qtpy.QtWidgets import QApplication, QFrame, QTextEdit
+from qtpy.QtCore import Qt, QFile, Slot, QTimer
 import signal
 import qt_clock_rc
 

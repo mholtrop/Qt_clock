@@ -2,9 +2,11 @@
 #
 # Python port of the Qt_clock C++ app.
 #
-#
-from PySide2.QtWidgets import QApplication
-from PySide2.QtCore import QFile, QJsonDocument
+# I switched to qtpy 2025. This allows the Python system to
+# choose which PySide version to invoke, PySide2 on older machines,
+# PySide6 on newer ones. It should also provide some shims between them.
+from qtpy.QtWidgets import QApplication
+from qtpy.QtCore import QFile, QJsonDocument
 
 from clock_widget import Clock_widget
 import qt_clock_rc

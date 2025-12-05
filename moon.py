@@ -41,12 +41,12 @@
 # wget -nc -w 1 -nd -r  https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004874/frames/216x216_1x1_30p
 # wget -nc -w 1 -nd -r  https://svs.gsfc.nasa.gov/vis/a000000/a005100/a005187/frames/216x216_1x1_30p
 
-from datetime import datetime
+from datetime import datetime, timezone
 import dateutil.parser as datparser
 
-from PySide2.QtWidgets import QApplication, QWidget, QLabel
-from PySide2.QtGui import QPixmap, QImage
-from PySide2.QtCore import Qt, QFile, Slot, QTimer, QRect
+from qtpy.QtWidgets import QApplication, QWidget, QLabel
+from qtpy.QtGui import QPixmap, QImage
+from qtpy.QtCore import Qt, QFile, Slot, QTimer, QRect
 import requests
 import os
 
@@ -94,13 +94,14 @@ class QMoon(QWidget):
         # Conversion from the jscript.
         #
         if self.date is None:
-            now = datetime.utcnow()
+#            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
         else:
             now = self.date
         if self.debug:
             print(f"Using date: {now}")
-        janone = datetime(now.year, 1, 1, 0, 0, 0)
-        self.moon_image_number = round((now - janone).total_seconds() / 3600)
+        janone = datetime(now.year, 1, 1, 0, 0, 0,tzinfo=timezone.utc)
+        self.moon_image_number = round((now - janone).total_seconds() / 3600) - 4 # Some NASA issue with the 4 hours difference.
         if self.debug:
             print(f"Moon_image_number: {self.moon_image_number}")
         return self.moon_image_number <= self.total_images
