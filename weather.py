@@ -18,7 +18,10 @@ import json
 from qtpy.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QTextEdit, QTextEdit, QPushButton
 from qtpy.QtGui import QFont, QColor, QPixmap, QCursor
 from qtpy.QtCore import Qt, QObject, QFile, Signal, Slot, QRect, QCoreApplication, QTimer
-from qtpy.QtSvgWidgets import QSvgWidget
+try:
+    from qtpy.QtSvg import QSvgWidget
+except:
+    from qtpy.QtSvgWidgets import QSvgWidget
 
 import signal
 import qt_clock_rc
