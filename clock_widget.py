@@ -10,7 +10,7 @@ import os
 from qtpy.QtWidgets import QMainWindow, QSizePolicy, QTabWidget, QWidget, QLabel, QPushButton, QTimeEdit, \
     QLCDNumber, QSlider, QCheckBox, QSpinBox
 from qtpy.QtGui import QColor, QFont, QPainter, QPolygon
-from qtpy.QtCore import Qt, Slot, QTimer, QDateTime, QTime, QRect, QCoreApplication, QPoint
+from qtpy.QtCore import Qt, Slot, QTimer, QDateTime, QTime, QRect, QCoreApplication, QPoint, QJsonValue
 
 from weather import QWeather, QTempMiniPanel, QWeatherIcon
 from moon import QMoon
@@ -260,7 +260,7 @@ class Clock_widget(QMainWindow):
         if "BedTime" in json:
             bedtime_str = json["BedTime"]
             # if bedtime_str is a string use it if it is a QJsonValue convert it to string
-            if type(bedtime_str) != str:
+            if type(bedtime_str) == QJsonValue:
                 bedtime_str = bedtime_str.toString()
             new_bedtime = QTime.fromString(bedtime_str, "hh:mm:ss")
             if not new_bedtime.isValid():
@@ -273,11 +273,21 @@ class Clock_widget(QMainWindow):
                 print("Could not set bedtime to {}".format(str(new_bedtime)))
 
         if "GracePeriod" in json:
-            self.bedtime_grace_period = int(json["GracePeriod"])
+            tmp_int = json["GracePeriod"]
+            if type(tmp_int) == QJsonValue:
+                tmp_int = tmp_int.toInteger()
+            else:
+                tmp_int = int(tmp_int)
+            self.bedtime_grace_period = tmp_int
             self.grace_period.setValue(self.bedtime_grace_period)
 
         if "Brightness" in json:
-            self.LCD_brightness = int(json["Brightness"])
+            tmp_int = json["Brightness"]
+            if type(tmp_int) == QJsonValue:
+                tmp_int = tmp_int.toInteger()
+            else:
+                tmp_int = int(tmp_int)
+            self.LCD_brightness = tmp_int
             self.Brightness.setValue(self.LCD_brightness)
 
     @Slot()
@@ -406,7 +416,7 @@ class Clock_widget(QMainWindow):
         self.set_temp_color(self.temp_test, temp, not self.temp_check_outside.isChecked(), False)
 
     @Slot()
-    def set_bedtime(self, ntime):
+    def set_bedtime(self, ntime='22:00:00') -> None:
         """Set the bedtime to a new time"""
         self.bedtime = ntime
 
