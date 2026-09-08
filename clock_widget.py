@@ -417,25 +417,28 @@ class Clock_widget(QMainWindow):
         self.temp_test.setText(text)
         self.set_temp_color(self.temp_test, temp, not self.temp_check_outside.isChecked(), False)
 
-    @Slot()
+    @Slot(QTime)
+    @Slot(str)
     def set_bedtime(self, ntime='22:00:00') -> None:
         """Set the bedtime to a new time"""
-        if type(ntime) == str:
+        if isinstance(ntime, QTime):
+            new_time = ntime
+        else:
             new_time = QTime.fromString(ntime, "hh:mm:ss")
-        if not new_time.isValid():
-            new_time = QTime.fromString(ntime, "hh:mm")
+            if not new_time.isValid():
+                new_time = QTime.fromString(ntime, "hh:mm")
 
         if  new_time.isValid():
             self.bedtime = new_time
         else:
             print(f"Cound not set time in set_bedtime{ntime} ")
 
-    @Slot()
+    @Slot(int)
     def set_grace_period(self, grace= 30):
         """Set the grace period to a new delta time"""
         self.bedtime_grace_period = grace
 
-    @Slot()
+    @Slot(int)
     def set_screen_brightness(self, value=50):
         """Set the brightness of the screen on Raspberry Pi"""
         self.LCD_brightness = value
