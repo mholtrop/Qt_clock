@@ -275,7 +275,7 @@ class Clock_widget(QMainWindow):
         if "GracePeriod" in json:
             tmp_int = json["GracePeriod"]
             if type(tmp_int) == QJsonValue:
-                tmp_int = tmp_int.toInteger()
+                tmp_int = tmp_int.toInt()
             else:
                 tmp_int = int(tmp_int)
             self.bedtime_grace_period = tmp_int
@@ -284,7 +284,7 @@ class Clock_widget(QMainWindow):
         if "Brightness" in json:
             tmp_int = json["Brightness"]
             if type(tmp_int) == QJsonValue:
-                tmp_int = tmp_int.toInteger()
+                tmp_int = tmp_int.toInt()
             else:
                 tmp_int = int(tmp_int)
             self.LCD_brightness = tmp_int
