@@ -421,7 +421,7 @@ class Clock_widget(QMainWindow):
         self.bedtime = ntime
 
     @Slot()
-    def set_grace_period(self, grace):
+    def set_grace_period(self, grace= 30):
         """Set the grace period to a new delta time"""
         self.bedtime_grace_period = grace
 
