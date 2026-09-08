@@ -64,7 +64,9 @@ class QMoon(QWidget):
         self.moon_path_2024 = "/vis/a000000/a005100/a005187/"
         self.moon_path_2025 = "/vis/a000000/a005400/a005415/"
         # https://svs.gsfc.nasa.gov/vis/a000000/a004900/a004955/frames/216x216_1x1_30p/moon.8597.jpg
-        self.moon_path = "/vis/a000000/a005400/a005415/"   #
+        self.moon_path_2026 = "/vis/a000000/a005400/a005415/"   #
+        self.moon_path_2027 = "/vis/a000000/a005500/a005587/"
+        self.moon_path = "/vis/a000000/a005500/a005587/"
         self.debug = debug
         self.size = size
         self.get_from_web = web
@@ -100,8 +102,8 @@ class QMoon(QWidget):
             now = self.date
         if self.debug:
             print(f"Using date: {now}")
-        janone = datetime(now.year, 1, 1, 0, 0, 0,tzinfo=timezone.utc)
-        self.moon_image_number = round((now - janone).total_seconds() / 3600) - 4 # Some NASA issue with the 4 hours difference.
+        janone = datetime(now.year, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        self.moon_image_number = round((now - janone).total_seconds() / 3600)
         if self.debug:
             print(f"Moon_image_number: {self.moon_image_number}")
         return self.moon_image_number <= self.total_images
@@ -205,12 +207,11 @@ def main():
     app.setStyleSheet(style_sheet.data().decode("utf-8"))
 
     if args.date is not None:
-        date_check = datparser.parse(args.date)
+        date_check = datparser.parse(args.date, default=datetime(2000, 1, 1, tzinfo=timezone.utc))
         if args.debug > 0:
             print("Date to use: ", date_check)
     else:
         date_check = None
-
 
     moon = QMoon(size=args.size, date=date_check, debug=args.debug, web=args.web, save=True)
     moon.show()
