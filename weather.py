@@ -213,7 +213,7 @@ class QWeatherIcon(QSvgWidget):
             icon_url = self.weather.fc['periods'][0]['icon']
             # icon_url is something like:
             # "https://api.weather.gov/icons/land/day/sct?size=medium"
-            match = re.match("https://api\.weather\.gov/icons/(.*)/(.*)/([a-z_]*).*", icon_url)
+            match = re.match("https://api\\.weather\\.gov/icons/(.*)/(.*)/([a-z_]*).*", icon_url)
             if self.weather.debug > 0:
                 print(f"{datetime.now()} - Update icon for: '{condition}'  url: {icon_url}  match: {match.group(3)}")
             if not match or not match.group(3) in self.WEATHER_ICONS:
