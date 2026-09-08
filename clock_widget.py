@@ -262,6 +262,7 @@ class Clock_widget(QMainWindow):
             # if bedtime_str is a string use it if it is a QJsonValue convert it to string
             if type(bedtime_str) == QJsonValue:
                 bedtime_str = bedtime_str.toString()
+
             new_bedtime = QTime.fromString(bedtime_str, "hh:mm:ss")
             if not new_bedtime.isValid():
                 new_bedtime = QTime.fromString(bedtime_str, "hh:mm")
@@ -300,6 +301,7 @@ class Clock_widget(QMainWindow):
         self.Digital.setText(text)
 
         time = dtime.time()
+
         if self.bedtime < time < self.bedtime.addSecs(self.bedtime_grace_period * 60):
             self.Digital.setStyleSheet("color: rgba(200,100,0,200)")
             self.Digital.setText(text + " Bedtime")
@@ -418,7 +420,15 @@ class Clock_widget(QMainWindow):
     @Slot()
     def set_bedtime(self, ntime='22:00:00') -> None:
         """Set the bedtime to a new time"""
-        self.bedtime = ntime
+        if type(ntime) == str:
+            new_time = QTime.fromString(ntime, "hh:mm:ss")
+        if not new_time.isValid():
+            new_time = QTime.fromString(ntime, "hh:mm")
+
+        if  new_time.isValid():
+            self.bedtime = new_time
+        else:
+            print(f"Cound not set time in set_bedtime{ntime} ")
 
     @Slot()
     def set_grace_period(self, grace= 30):
