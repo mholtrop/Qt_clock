@@ -87,11 +87,12 @@ class QWeatherInfoIcon(QPushButton):
         self.parent.icon_click(self.index)
 
 
-class QTempMiniPanel:
+class QTempMiniPanel(QObject):
     """A small weather panel which uses the information from QWeather to display some information."""
 
     def __init__(self, pos, qweather, parent=None):
         """Setup a mini-panel which can be part of the clock page."""
+        super(QTempMiniPanel, self).__init__(parent)
 
         self.parent = parent
         self.weather = qweather
