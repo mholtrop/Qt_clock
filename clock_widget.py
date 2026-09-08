@@ -258,9 +258,13 @@ class Clock_widget(QMainWindow):
         """Set settings from the json dictionary passed."""
 
         if "BedTime" in json:
-            new_bedtime = QTime.fromString(json["BedTime"], "hh:mm:ss")
+            bedtime_str = json["BedTime"]
+            # if bedtime_str is a string use it if it is a QJsonValue convert it to string
+            if type(bedtime_str) != str:
+                bedtime_str = bedtime_str.toString()
+            new_bedtime = QTime.fromString(bedtime_str, "hh:mm:ss")
             if not new_bedtime.isValid():
-                new_bedtime = QTime.fromString(json["BedTime"], "hh:mm")
+                new_bedtime = QTime.fromString(bedtime_str, "hh:mm")
 
             if new_bedtime.isValid():
                 self.bedtime = new_bedtime
@@ -412,7 +416,7 @@ class Clock_widget(QMainWindow):
         self.bedtime_grace_period = grace
 
     @Slot()
-    def set_screen_brightness(self, value):
+    def set_screen_brightness(self, value=50):
         """Set the brightness of the screen on Raspberry Pi"""
         self.LCD_brightness = value
 
