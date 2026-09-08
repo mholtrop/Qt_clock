@@ -3,8 +3,8 @@
 # Python port of the Qt_clock C++ app.
 #
 #
-from PySide2.QtWidgets import QApplication
-from PySide2.QtCore import QFile, QJsonDocument
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QFile, QJsonDocument
 
 from clock_widget import Clock_widget
 import qt_clock_rc
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     else:
         file = QFile(args.style)
 
-    file.open(QFile.ReadOnly)
+    file.open(QFile.OpenModeFlag.ReadOnly)
     style_sheet = file.readAll()
     # print(style_sheet.data().decode("utf-8"))
     app.setStyleSheet(style_sheet.data().decode("utf-8"))
@@ -89,7 +89,7 @@ if __name__ == '__main__':
 
     setting_file = os.getenv("HOME") + "/.Qt_Clock"
     loadfile = QFile(setting_file)
-    if not loadfile.open(QFile.ReadOnly):
+    if not loadfile.open(QFile.OpenModeFlag.ReadOnly):
         print("Could not open setting JSon file: {}".format(setting_file))
     else:
         data = loadfile.readAll()
@@ -97,4 +97,4 @@ if __name__ == '__main__':
         clock.setup_from_json(json)
 
     clock.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

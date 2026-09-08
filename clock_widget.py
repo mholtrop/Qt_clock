@@ -7,10 +7,10 @@
 #
 import os
 import zmq
-from PySide2.QtWidgets import QMainWindow, QSizePolicy, QTabWidget, QWidget, QLabel, QPushButton, QTimeEdit, \
+from PySide6.QtWidgets import QMainWindow, QSizePolicy, QTabWidget, QWidget, QLabel, QPushButton, QTimeEdit, \
     QLCDNumber, QSlider, QCheckBox, QSpinBox
-from PySide2.QtGui import QColor, QFont, QPainter, QPolygon
-from PySide2.QtCore import Qt, Slot, QTimer, QDateTime, QTime, QRect, QCoreApplication, QPoint
+from PySide6.QtGui import QColor, QFont, QPainter, QPolygon
+from PySide6.QtCore import Qt, Slot, QTimer, QDateTime, QTime, QRect, QCoreApplication, QPoint
 
 from weather import QWeather, QTempMiniPanel, QWeatherIcon
 from moon import QMoon
@@ -47,16 +47,16 @@ class Clock_widget(QMainWindow):
         if not self.objectName():
             self.setObjectName(u"Clock")
 
-        sizePolicy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(parent.sizePolicy().hasHeightForWidth())
         parent.setSizePolicy(sizePolicy)
         parent.setAutoFillBackground(True)
 
-        parent.setWindowFlag(Qt.Widget, True)
+        parent.setWindowFlag(Qt.WindowType.Widget, True)
         if os.uname().sysname == "Linux" or self.frameless:
-            parent.setWindowFlag(Qt.FramelessWindowHint, True)
+            parent.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
     
         self.tabWidget = QTabWidget(parent)
         self.tabWidget.setObjectName(u"tabWidget")
@@ -157,7 +157,7 @@ class Clock_widget(QMainWindow):
         font8.setPointSize(16)
         font8.setBold(False)
         font8.setItalic(False)
-        font8.setWeight(50)
+        font8.setWeight(QFont.Weight.Normal)
         self.timeEdit.setFont(font8)
         self.timeEdit.setAutoFillBackground(True)
         self.timeEdit.setTime(self.bedtime)
@@ -181,7 +181,7 @@ class Clock_widget(QMainWindow):
         self.Brightness.setAutoFillBackground(False)
         self.Brightness.setMaximum(255)
         self.Brightness.setValue(self.LCD_brightness)
-        self.Brightness.setOrientation(Qt.Vertical)
+        self.Brightness.setOrientation(Qt.Orientation.Vertical)
         self.Brightness_label = QLabel(self.settings)
         self.Brightness_label.setObjectName(u"Brightness_label")
         self.Brightness_label.setText(u"Brightness")
@@ -190,7 +190,7 @@ class Clock_widget(QMainWindow):
         font10.setFamily(u"Arial Black")
         font10.setPointSize(12)
         font10.setBold(True)
-        font10.setWeight(75)
+        font10.setWeight(QFont.Weight.Bold)
         self.Brightness_label.setFont(font10)
         self.temp_test = QLabel(self.settings)
         self.temp_test.setObjectName(u"temp_test")
@@ -207,7 +207,7 @@ class Clock_widget(QMainWindow):
         self.temp_test_slide.setSingleStep(5)
         self.temp_test_slide.setPageStep(25)
         self.temp_test_slide.setValue(38)
-        self.temp_test_slide.setOrientation(Qt.Vertical)
+        self.temp_test_slide.setOrientation(Qt.Orientation.Vertical)
         self.temp_check_outside = QCheckBox(self.settings)
         self.temp_check_outside.setObjectName(u"temp_check_outside")
         self.temp_check_outside.setText(u"Outside")
@@ -464,11 +464,11 @@ class AnalogClock(QWidget):
         time = QTime.currentTime()
 
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.translate(self.width() / 2, self.height() / 2)
         painter.scale(side / 200.0, side / 200.0)
 
-        painter.setPen(Qt.NoPen)
+        painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(AnalogClock.hourColor)
 
         painter.save()
@@ -482,7 +482,7 @@ class AnalogClock(QWidget):
             painter.drawLine(88, 0, 96, 0)
             painter.rotate(30.0)
 
-        painter.setPen(Qt.NoPen)
+        painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(AnalogClock.minuteColor)
 
         painter.save()
@@ -497,7 +497,7 @@ class AnalogClock(QWidget):
                 painter.drawLine(92, 0, 96, 0)
             painter.rotate(6.0)
 
-        painter.setPen(Qt.NoPen)
+        painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(AnalogClock.secondColor)
 
         painter.save()

@@ -12,8 +12,8 @@ import json
 #
 # Example conversion to datetime: datetime.fromisoformat(wjson['properties']['updateTime'])
 #
-from PySide2.QtWidgets import QApplication, QFrame, QTextEdit
-from PySide2.QtCore import Qt, QFile, Slot, QTimer
+from PySide6.QtWidgets import QApplication, QFrame, QTextEdit
+from PySide6.QtCore import Qt, QFile, Slot, QTimer
 import signal
 import qt_clock_rc
 
@@ -71,7 +71,7 @@ class QHiLoTide(QTextEdit):
         self.debug = debug
         self.setReadOnly(True)
         self.setGeometry(pos[0], pos[1], 220, 60)
-        self.setFrameStyle(QFrame.NoFrame)
+        self.setFrameStyle(QFrame.Shape.NoFrame)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
         self.timer.start(3*3600*1000)
@@ -154,7 +154,7 @@ if __name__ == '__main__':
     else:
         file = QFile(args.style)
 
-    file.open(QFile.ReadOnly)
+    file.open(QFile.OpenModeFlag.ReadOnly)
     style_sheet = file.readAll()
     # print(style_sheet.data().decode("utf-8"))
     app.setStyleSheet(style_sheet.data().decode("utf-8"))
@@ -166,4 +166,4 @@ if __name__ == '__main__':
         tide.update()
         tide.show()
 
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

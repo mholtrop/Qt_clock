@@ -15,10 +15,10 @@ import json
 #
 # Example conversion to datetime: datetime.fromisoformat(wjson['properties']['updateTime'])
 #
-from PySide2.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QTextEdit, QTextEdit, QPushButton
-from PySide2.QtGui import QFont, QColor, QPixmap, QCursor
-from PySide2.QtCore import Qt, QObject, QFile, Signal, Slot, QRect, QCoreApplication, QTimer
-from PySide2.QtSvg import QSvgWidget
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QTextEdit, QTextEdit, QPushButton
+from PySide6.QtGui import QFont, QColor, QPixmap, QCursor
+from PySide6.QtCore import Qt, QObject, QFile, Signal, Slot, QRect, QCoreApplication, QTimer
+from PySide6.QtSvgWidgets import QSvgWidget
 
 import signal
 import qt_clock_rc
@@ -229,7 +229,7 @@ class QWeatherIcon(QSvgWidget):
             print("ERROR - QWeatherIcon - weather not initialized.")
 
 
-class QWeather(QWidget, QObject):
+class QWeather(QWidget):
     """Simple Weather reporter window."""
     Weather_gov_url = "https://api.weather.gov/points/"
     geo_point_freeport = (43.8672, -70.0968)  # South Freeport
@@ -744,7 +744,7 @@ if __name__ == '__main__':
     else:
         file = QFile(args.style)
 
-    file.open(QFile.ReadOnly)
+    file.open(QFile.OpenModeFlag.ReadOnly)
     style_sheet = file.readAll()
     # print(style_sheet.data().decode("utf-8"))
     app.setStyleSheet(style_sheet.data().decode("utf-8"))
@@ -767,7 +767,7 @@ if __name__ == '__main__':
         weather.debug = args.debug
         weather.show()
 
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 # else:
 #     app = QApplication()
 #     widget = QWidget()

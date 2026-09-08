@@ -44,9 +44,9 @@
 from datetime import datetime
 import dateutil.parser as datparser
 
-from PySide2.QtWidgets import QApplication, QWidget, QLabel
-from PySide2.QtGui import QPixmap, QImage
-from PySide2.QtCore import Qt, QFile, Slot, QTimer, QRect
+from PySide6.QtWidgets import QApplication, QWidget, QLabel
+from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtCore import Qt, QFile, Slot, QTimer, QRect
 import requests
 import os
 
@@ -147,12 +147,12 @@ class QMoon(QWidget):
             rect = QRect(offset, 0, size.height(), size.height())
             self.image = self.image.copy(rect)
             pix = QPixmap.fromImage(self.image)
-            pix = pix.scaled(self.size, self.size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            pix = pix.scaled(self.size, self.size, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
             return pix
         else:
 
             pix = QPixmap(moon_file)
-            pix = pix.scaled(self.size, self.size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            pix = pix.scaled(self.size, self.size, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
             return pix
 
 
@@ -198,7 +198,7 @@ def main():
     else:
         file = QFile(args.style)
 
-    file.open(QFile.ReadOnly)
+    file.open(QFile.OpenModeFlag.ReadOnly)
     style_sheet = file.readAll()
     # print(style_sheet.data().decode("utf-8"))
     app.setStyleSheet(style_sheet.data().decode("utf-8"))
@@ -213,7 +213,7 @@ def main():
 
     moon = QMoon(size=args.size, date=date_check, debug=args.debug, web=args.web, save=True)
     moon.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == '__main__':
