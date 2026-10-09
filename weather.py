@@ -568,7 +568,7 @@ class QWeather(QWidget, QObject):
 
     @Slot()
     def update_temperatures(self):
-        """Get a new set of temperatures from bbb1 using zmq."""
+        """Get a new set of temperatures from sensors."""
         if self.debug > 1:
             print(" -- update_temperatures() ")
 

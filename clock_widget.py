@@ -6,6 +6,8 @@
 #
 #
 import os
+import subprocess
+
 # import zmq
 from qtpy.QtWidgets import QMainWindow, QSizePolicy, QTabWidget, QWidget, QLabel, QPushButton, QTimeEdit, \
     QLCDNumber, QSlider, QCheckBox, QSpinBox
@@ -352,6 +354,35 @@ class Clock_widget(QMainWindow):
     #     os.system("(ssh bbb1 \"./LEDBall_off.py && ./matrix.py 300 3. 50\" >/dev/null)");
     #     self.LEDBall_state = 2
 
+    def start_swayidle(self, delay_time = 28800):
+        # Define the command as a list of arguments
+        # Set the idle timeout (e.g., 600 seconds) and the wlopm targets
+        cmd = [
+            "swayidle", "-w",
+            "timeout", delay_time.str(), "wlopm --off *",
+            "resume", "wlopm --on *"
+        ]
+
+        try:
+            os.system("pkill -9 swayidle")
+        except:
+            pass
+
+        try:
+            # Start swayidle in the background
+            # stdout and stderr are piped to devnull to keep your console clean
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                preexec_fn=os.setsid  # Creates a process group so it won't die if your main script crashes
+            )
+            print(f"swayidle started successfully in the background (PID: {process.pid})")
+            return process
+        except FileNotFoundError:
+            print("Error: 'swayidle' is not installed or not in your PATH.")
+            return None
+
     @Slot()
     def set_sleep(self):
         # self.set_ledball_off()
@@ -360,7 +391,15 @@ class Clock_widget(QMainWindow):
     def turn_off_lcd(self):
         """Turn the LCD off with the DPMS."""
         if os.uname().sysname == "Linux":
-            os.system("/usr/bin/xset dpms force off")
+            try:
+                # This was for X11
+                # os.system("/usr/bin/xset dpms force off")
+                # We are now on Wayland, but direct hardware control works for HARDWARE!
+                # This turns off the display, but now a touch won't wake it up.
+                # os.system("echo 1 | sudo tee /sys/class/backlight/10-0045/bl_power")
+                os.system("pkill --signal SIGUSR1 swayidle")
+            except:
+                print("Screen blank is not working")
 
     def set_pressure_color(selfs, obj, press, valid=True):
         """Set the color of obj according to the pressure. """
@@ -445,7 +484,7 @@ class Clock_widget(QMainWindow):
 
         if os.uname().sysname == "Linux":
             try:
-                f = open("/sys/class/backlight/rpi_backlight/brightness", "w")
+                f = open("/sys/class/backlight/10-0045/brightness", "w")
                 f.write(str(value))
                 f.close()
             except Exception as e:

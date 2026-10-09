@@ -5,6 +5,14 @@
 # I switched to qtpy 2025. This allows the Python system to
 # choose which PySide version to invoke, PySide2 on older machines,
 # PySide6 on newer ones. It should also provide some shims between them.
+import os
+
+if not 'QT_API' in os.environ:
+    os.environ['QT_API'] = 'pyside6'
+
+if not 'WAYLAND_DISPLAY' in os.environ:
+    os.environ['WAYLAND_DISPLAY'] ="wayland-0"
+
 from qtpy.QtWidgets import QApplication
 from qtpy.QtCore import QFile, QJsonDocument
 
@@ -47,8 +55,7 @@ if __name__ == '__main__':
     import argparse
 
     if os.uname().sysname == "Linux":
-        os.system("/usr/bin/xset dpms 28800 28800 36000")
-        os.system("/usr/bin/xset s off")  # Also turn off screen saver.
+        os.system("pkill -9 swayidle")
 
     setup_interrupt_handling()
 
@@ -80,7 +87,7 @@ if __name__ == '__main__':
     app.setStyleSheet(style_sheet.data().decode("utf-8"))
 
     if os.uname().sysname == "Linux":
-        f = open("/sys/class/backlight/rpi_backlight/brightness")
+        f = open("/sys/class/backlight/10-0045/brightness")
         num = int(f.readline())
         f.close()
     else:

@@ -17,6 +17,7 @@ Requires: bleak, requests
     pip install bleak requests
 """
 
+import os
 import argparse
 import asyncio
 import logging
@@ -78,26 +79,29 @@ def to_line_protocol(measurement: str, tags: dict, fields: dict, ts_ns: int) -> 
     return f"{prefix} {field_str} {ts_ns}"
 
 
-def write_to_influx(url: str, db: str, line: str, timeout: float = 5.0):
+def write_to_influx(url: str, bucket: str, org: str, token: str, line: str, timeout: float = 5.0):
     resp = requests.post(
-        f"{url}/write",
-        params={"db": db, "precision": "ns"},
+        f"{url}/api/v2/write",
+        params={"bucket": bucket, "org": org, "precision": "ns"},
+        headers={
+            "Authorization": f"Token {token}",
+            "Content-Type": "text/plain; charset=utf-8",
+        },
         data=line.encode("utf-8"),
         timeout=timeout,
     )
     resp.raise_for_status()
 
 
-async def poll_once(sensors: dict, influx_url: str, influx_db: str):
+async def poll_once(sensors: dict, influx_url: str, influx_db: str, influx_org: str, influx_token: str):
     for address, name in sensors.items():
         try:
             data = await read_sensor(address)
-        except (BleakError, asyncio.TimeoutError) as exc:
+        except (BleakError, asyncio.TimeoutError, EOFError, OSError) as exc:
             log.warning("failed to read %s (%s): %s", name, address, exc)
             continue
 
         print("Got data:", data)
-
 
         ts_ns = time.time_ns()
         line = to_line_protocol(
@@ -112,7 +116,7 @@ async def poll_once(sensors: dict, influx_url: str, influx_db: str):
             ts_ns=ts_ns,
         )
         try:
-            write_to_influx(influx_url, influx_db, line)
+            write_to_influx(influx_url, influx_db, influx_org, influx_token, line)
         except requests.RequestException as exc:
             log.warning("failed to write to influx for %s: %s", name, exc)
             continue
@@ -127,30 +131,25 @@ async def poll_once(sensors: dict, influx_url: str, influx_db: str):
         )
 
 
-async def main_loop(sensors: dict, influx_url: str, influx_db: str, interval: float):
+async def main_loop(sensors: dict, influx_url: str, influx_db: str, influx_org: str, influx_token: str, interval: float):
     while True:
         start = time.monotonic()
-        await poll_once(sensors, influx_url, influx_db)
+        await poll_once(sensors, influx_url, influx_db, influx_org, influx_token)
         elapsed = time.monotonic() - start
         await asyncio.sleep(max(0.0, interval - elapsed))
-
-
-def parse_sensor_arg(value: str) -> tuple:
-    address, _, name = value.partition("=")
-    return address.strip(), (name.strip() or address.strip())
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--sensor",
-        action="append",
-        required=True,
-        metavar="MAC=name",
-        help="Sensor MAC address and a friendly tag name, e.g. AA:BB:CC:DD:EE:FF=cabin. Repeatable.",
+        "--sensor", action="append", required=True, metavar="MAC=name",
+        help="Sensor MAC address and friendly tag name. Repeatable.",
     )
     parser.add_argument("--influx-url", default="http://localhost:8086")
-    parser.add_argument("--influx-db", default="boat")
+    parser.add_argument("--influx-db", default="Sensors", help="InfluxDB v2 bucket name")
+    parser.add_argument("--influx-org", default="Skog", help="InfluxDB v2 organization name")
+    parser.add_argument("--influx-token", default=os.environ.get("INFLUX_TOKEN"),
+                        help="InfluxDB v2 API token (or set INFLUX_TOKEN env var)")
     parser.add_argument("--interval", type=float, default=60.0, help="seconds between polls")
     parser.add_argument("--once", action="store_true", help="poll once and exit")
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -164,9 +163,16 @@ def main():
     sensors = dict(parse_sensor_arg(s) for s in args.sensor)
 
     if args.once:
-        asyncio.run(poll_once(sensors, args.influx_url, args.influx_db))
+        asyncio.run(poll_once(sensors, args.influx_url, args.influx_db, args.influx_org, args.influx_token))
     else:
-        asyncio.run(main_loop(sensors, args.influx_url, args.influx_db, args.interval))
+        asyncio.run(main_loop(sensors, args.influx_url, args.influx_db, args.influx_org, args.influx_token, args.interval))
+
+
+def parse_sensor_arg(value: str) -> tuple:
+    address, _, name = value.partition("=")
+    return address.strip(), (name.strip() or address.strip())
+
+
 
 
 if __name__ == "__main__":
