@@ -3,9 +3,16 @@
 from datetime import datetime
 from dateutil import tz
 import requests
-# import zmq
+import asyncio
+import time
 import re
 import json
+try:
+    from bleak.exc import BleakError
+    from sensorpush_influx import read_sensor
+except ImportError:
+    # Without bleak we can still show the weather.gov data, just no SensorPush sensors.
+    read_sensor = None
 #
 # Weather API: https://api.weather.gov
 #
@@ -17,7 +24,7 @@ import json
 #
 from qtpy.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QTextEdit, QTextEdit, QPushButton
 from qtpy.QtGui import QFont, QColor, QPixmap, QCursor
-from qtpy.QtCore import Qt, QObject, QFile, Signal, Slot, QRect, QCoreApplication, QTimer
+from qtpy.QtCore import Qt, QObject, QFile, Signal, Slot, QRect, QCoreApplication, QTimer, QThread
 try:
     from qtpy.QtSvg import QSvgWidget
 except:
@@ -25,6 +32,61 @@ except:
 
 import signal
 import qt_clock_rc
+
+
+class QSensorPushReader(QThread):
+    """Background thread that polls SensorPush sensors over BLE.
+
+    The BLE connect/read takes seconds, so it must not run in the GUI thread.
+    sensors is a dict {MAC address: role}, where role is "inside", "outside" or "closet".
+    For each successful read the data_ready(role, data) signal is emitted, where data is the
+    dict returned by sensorpush_influx.read_sensor()."""
+
+    data_ready = Signal(str, object)
+
+    def __init__(self, sensors, interval=60, debug=0, parent=None):
+        super(QSensorPushReader, self).__init__(parent)
+        self.sensors = sensors
+        self.interval = interval
+        self.debug = debug
+        self._stop = False
+
+    def stop(self):
+        """Ask the thread to stop and wait for it. A BLE read in progress can take up to its 15s timeout."""
+        self._stop = True
+        self.wait(20000)
+
+    def run(self):
+        asyncio.run(self._main_loop())
+
+    async def _main_loop(self):
+        while not self._stop:
+            start = time.monotonic()
+            for address, role in self.sensors.items():
+                if self._stop:
+                    return
+                try:
+                    data = await read_sensor(address)
+                except (BleakError, asyncio.TimeoutError, EOFError, OSError) as exc:
+                    if self.debug:
+                        print(f"Failed to read SensorPush {role} ({address}): {exc}")
+                    continue
+                if self.debug > 1:
+                    print(f"SensorPush {role}: {data}")
+                self.data_ready.emit(role, data)
+
+            while not self._stop and time.monotonic() - start < self.interval:
+                await asyncio.sleep(0.5)
+
+
+def parse_sensors(sensor_args):
+    """Turn a list of "MAC=role" strings into a dict {MAC: role}."""
+    sensors = {}
+    for value in sensor_args:
+        address, _, role = value.partition("=")
+        sensors[address.strip()] = role.strip().lower() or "inside"
+    return sensors
+
 
 class QWeatherInfoIcon(QPushButton):
     """Small helper class for one day weather icon with temperature."""
@@ -139,25 +201,25 @@ class QTempMiniPanel(QObject):
             print("ERROR - QWeatherMiniPanel not configured correctly.", type(self.weather))
             return
 
+        td = self.weather.temp_data
         try:
-            if "inside_temp" in self.weather.temp_data and "inside_humidity" in self.weather.temp_data:
-                self.inside_temp.setText(f"{self.weather.temp_data['inside_temp']:5.2f} C  {'inside_humidity':5.1f} %")
-                QWeather.set_temp_color(self.inside_temp, self.weather.temp_data['inside_temp'], True,
-                                    not self.weather.temp_data_valid)
-            else:
-                QWeather.set_temp_color(self.inside_temp, -999., True, True)
+            for role, label, inside in (("inside", self.inside_temp, True), ("outside", self.outside_temp, False)):
+                if f"{role}_temp" in td and f"{role}_humidity" in td:
+                    label.setText(f"{td[f'{role}_temp']:5.2f} C  {td[f'{role}_humidity']:5.1f} %")
+                    QWeather.set_temp_color(label, td[f'{role}_temp'], inside, not self.weather.role_valid(role))
+                else:
+                    QWeather.set_temp_color(label, -999., inside, True)
 
-            if "outside_temp" in self.weather.temp_data and "outside_humidity" in self.weather.temp_data:
-                self.outside_temp.setText(f"{self.weather.temp_data['outside_temp']:5.2f} C  {self.weather.temp_data['outside_humidity']:5.1f} %")
-                QWeather.set_temp_color(self.outside_temp, self.weather.temp_data['outside_temp'], False,
-                                    not self.weather.temp_data_valid)
-                self.pressure.setText(f"{self.weather.temp_data['outside_pressure']/100:7.2f} mbar")
-                QWeather.set_pressure_color(self.pressure, self.weather.temp_data['outside_pressure']/100, self.weather.temp_data_valid)
-            else:
-                QWeather.set_temp_color(self.outside_temp, self.weather.temp_data['outside_temp'], False, True)
+            # Prefer the outside pressure, but any sensor will do.
+            for role in ("outside", "inside", "closet"):
+                if f"{role}_pressure" in td:
+                    self.pressure.setText(f"{td[f'{role}_pressure']/100:7.2f} mbar")
+                    QWeather.set_pressure_color(self.pressure, td[f'{role}_pressure']/100,
+                                                self.weather.role_valid(role))
+                    break
 
         except Exception as e:
-            print("Exception while updating minipanel.")
+            print("Exception while updating minipanel:", e)
 
 class QWeatherIcon(QSvgWidget):
     """A simple icon for indicating the weather."""
@@ -249,7 +311,10 @@ class QWeather(QWidget, QObject):
     temp_updated = Signal()
     weather_updated = Signal()
 
-    def __init__(self, parent=None, debug=0):
+    def __init__(self, parent=None, debug=0, sensors=None):
+        """sensors is an optional dict {MAC address: role} of SensorPush sensors to read over BLE,
+        with role one of "inside", "outside", "closet". If there is no "outside" sensor, the
+        outside data comes from the weather.gov observation for geo_point."""
         super(QWeather, self).__init__(parent)
         self.setObjectName(u"weather")
 
@@ -264,6 +329,8 @@ class QWeather(QWidget, QObject):
         self.n_updates = 1
         self.temp_data = {}
         self.temp_data_valid = False
+        self.temp_data_time = {}    # role -> time.monotonic() of the last good reading.
+        self.temp_stale_time = 5*60  # Readings older than this are shown as invalid (grey).
 
         self.w_update_interval = 60*60  # Once per hour.
         self.w_update = 3
@@ -282,12 +349,17 @@ class QWeather(QWidget, QObject):
         self.fc = None   # Stores the dict of the weather forecast.
         self.fc_time = None  # Stores the forecast time
 
-        # self.zmq_context = zmq.Context()
-        # self.zmq_socket = self.zmq_context.socket(zmq.REQ)
-        # self.zmq_socket.connect("tcp://bbb1:5555")
-        # self.zmq_request_made = False
-        # self.zqm_poll = zmq.Poller()
-        # self.zqm_poll.register(self.zmq_socket, zmq.POLLIN)
+        self.sensors = sensors if sensors is not None else {}
+        self.sensor_reader = None
+        if self.sensors:
+            if read_sensor is None:
+                print("WARNING: bleak is not installed, cannot read the SensorPush sensors.")
+            else:
+                self.sensor_reader = QSensorPushReader(self.sensors, interval=self.temp_update_interval,
+                                                       debug=self.debug, parent=self)
+                self.sensor_reader.data_ready.connect(self.sensor_data_received)
+                QCoreApplication.instance().aboutToQuit.connect(self.sensor_reader.stop)
+                self.sensor_reader.start()
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
@@ -568,64 +640,48 @@ class QWeather(QWidget, QObject):
 
     @Slot()
     def update_temperatures(self):
-        """Get a new set of temperatures from sensors."""
+        """Get the outside observation from weather.gov when there is no outside sensor.
+        The SensorPush sensors are read in the background by self.sensor_reader."""
         if self.debug > 1:
             print(" -- update_temperatures() ")
 
         self.n_updates = self.n_updates - 1
+        if self.n_updates > 0:
+            return
+        self.n_updates = self.temp_update_interval
 
-        def smart_float(d):
-            try:
-                r = float(d)
-            except:
-                r = d.replace('"', '')
-            return r
-
-        if self.n_updates <= 0:
+        if "outside" not in self.sensors.values():
             try:
                 self.observation_json = self.get_weather_forecast(point=self.geo_point, kind="current")
-                self.temp_data['outside_temp'] = smart_float(self.observation_json['properties']['temperature']['value'])
-                self.temp_data['outside_pressure'] = smart_float(self.observation_json['properties']['seaLevelPressure']['value'])
-                self.temp_data['outside_humidity'] = smart_float(self.observation_json['properties']['relativeHumidity']['value'])
-                self.temp_data_valid = True
-                self.n_updates = self.temp_update_interval
-                self.temp_updated.emit()
-            except:
+                props = self.observation_json['properties']
+                for key, prop in (('outside_temp', 'temperature'), ('outside_pressure', 'seaLevelPressure'),
+                                  ('outside_humidity', 'relativeHumidity')):
+                    if props[prop]['value'] is not None:
+                        self.temp_data[key] = float(props[prop]['value'])
+                self.temp_data_time['outside'] = time.monotonic()
+            except Exception as e:
                 if self.debug > 1:
-                    print("Failed to get weather forecast.")
-                self.temp_data_valid = False
+                    print("Failed to get weather observation:", e)
 
-        # if self.n_updates <= 1:  # We take two updates to complete this, so start at 1
-        #
-        #     if not self.zmq_request_made:
-        #         self.zmq_socket.send(b'a')
-        #         self.zmq_request_made = True
-        #     else:
-        #         pass
-        #
-        # if self.zmq_request_made:
-        #     socks = dict(self.zqm_poll.poll(2))
-        #     if self.debug > 3:
-        #         print("Polling, ")
-        #     if self.zmq_socket in socks and socks[self.zmq_socket] == zmq.POLLIN:
-        #         if self.debug > 3:
-        #             print("Got a poll reply.")
-        #         mess = self.zmq_socket.recv(zmq.DONTWAIT)
-        #         if self.debug > 3:
-        #             print(mess)
-        #         self.temp_data = list(map(smart_float, mess[1:-1].decode().split(',')))
-        #         self.n_updates = self.temp_update_interval
-        #         self.temp_data_valid = True
-        #         self.zmq_request_made = False
-        #         if self.debug > 3:
-        #             print("temp_updated.emit()")
-        #         self.temp_updated.emit()
-        #     elif self.n_updates < -1:
-        #         self.temp_data_valid = False
-        #         if self.debug > 3:
-        #             print("nothing, n_updates = ", self.n_updates)
+        # Emit even without new data, so stale readings get greyed out.
+        self.temp_data_valid = any(self.role_valid(role) for role in self.temp_data_time)
+        self.temp_updated.emit()
 
+    @Slot(str, object)
+    def sensor_data_received(self, role, data):
+        """Store a reading from the SensorPush reader thread."""
+        self.temp_data[f'{role}_temp'] = data['temp_c']
+        self.temp_data[f'{role}_humidity'] = data['humidity_pct']
+        self.temp_data[f'{role}_pressure'] = data['pressure_pa']
+        self.temp_data[f'{role}_battery'] = data['battery_mv']
+        self.temp_data_time[role] = time.monotonic()
+        self.temp_data_valid = True
+        self.temp_updated.emit()
 
+    def role_valid(self, role):
+        """True if we have a recent reading for role ("inside", "outside", "closet")."""
+        t = self.temp_data_time.get(role)
+        return t is not None and time.monotonic() - t < self.temp_stale_time
 
     @Slot()
     def update_temperature_display(self):
@@ -633,35 +689,23 @@ class QWeather(QWidget, QObject):
         if self.debug > 1:
             print("update_temperature_display(). Data is valid = ", self.temp_data_valid)
 
-        this_data_valid = self.temp_data_valid
-        if "inside_temp" in self.temp_data and "inside_humidity" in self.temp_data:
-            self.inside_temp_2.setText(f"{self.temp_data['inside_temp']:5.2f} C  {self.temp_data['inside_humidity']:5.1f} %")
-            self.set_temp_color(self.inside_temp_2, self.temp_data['inside_temp'], True, not this_data_valid)
-        else:
-            this_data_valid = False
-            self.set_temp_color(self.inside_temp_2, -999., True, not this_data_valid)
+        panels = (("inside", self.inside_temp_2, self.pressure_2, True),
+                  ("outside", self.outside_temp_2, self.pressure_3, False),
+                  ("closet", self.closet_temp, None, True))
+        for role, temp_label, press_label, inside in panels:
+            valid = self.role_valid(role)
+            if f"{role}_temp" in self.temp_data and f"{role}_humidity" in self.temp_data:
+                temp_label.setText(f"{self.temp_data[f'{role}_temp']:5.2f} C  {self.temp_data[f'{role}_humidity']:5.1f} %")
+                self.set_temp_color(temp_label, self.temp_data[f'{role}_temp'], inside, not valid)
+            else:
+                self.set_temp_color(temp_label, -999., inside, True)
 
-        this_data_valid = self.temp_data_valid
-        if "outside_temp" in self.temp_data and "outside_humidity" in self.temp_data:
-            self.outside_temp_2.setText(f"{self.temp_data['outside_temp']:5.2f} C  {self.temp_data['outside_humidity']:5.1f} %")
-            self.set_temp_color(self.outside_temp_2, self.temp_data['outside_temp'], False, not this_data_valid)
-        else:
-            this_data_valid = False
-            self.set_temp_color(self.outside_temp_2, -999., False, not this_data_valid)
-
-        #self.closet_temp.setText("{:5.2f} C  {:5.1f} %".format(self.temp_data[10], self.temp_data[9]))
-        #self.set_temp_color(self.closet_temp, self.temp_data[10], True, not self.temp_data_valid)
-
-        this_data_valid = self.temp_data_valid
-        if "outside_pressure" in self.temp_data:
-            self.pressure_3.setText(f"{self.temp_data['outside_pressure']/100:7.2f} mbar")
-            self.set_pressure_color(self.pressure_3, self.temp_data['outside_pressure']/100, this_data_valid)
-        else:
-            this_data_valid = False
-            self.set_pressure_color(self.pressure_3, -999., this_data_valid)
-
-        # self.pressure_3.setText("{:7.2f} mbar".format(self.temp_data[6]))
-        # self.set_pressure_color(self.pressure_3, self.temp_data[6], self.temp_data_valid)
+            if press_label is not None:
+                if f"{role}_pressure" in self.temp_data:
+                    press_label.setText(f"{self.temp_data[f'{role}_pressure']/100:7.2f} mbar")
+                    self.set_pressure_color(press_label, self.temp_data[f'{role}_pressure']/100, valid)
+                else:
+                    self.set_pressure_color(press_label, -999., False)
 
     @staticmethod
     def set_pressure_color(obj, press, valid = True):
@@ -739,8 +783,11 @@ if __name__ == '__main__':
     parser.add_argument("--style", "-s", type=str, help="Use specified style sheet.", default=None)
     parser.add_argument("--frameless", "-fl", action="store_true", help="Make a frameless window.")
     parser.add_argument("--icon", "-i", action="store_true", help="Show the weather icon.")
+    parser.add_argument("--sensor", action="append", default=[], metavar="MAC=role",
+                        help="SensorPush sensor MAC address and role (inside, outside, closet). Repeatable.")
 
     args = parser.parse_args(sys.argv[1:])
+    sensors = parse_sensors(args.sensor)
 
     file = None
     if args.style is None:
@@ -756,7 +803,7 @@ if __name__ == '__main__':
     if args.icon:
         widget = QWidget()
         widget.resize(250, 200)
-        weather = QWeather()
+        weather = QWeather(debug=args.debug, sensors=sensors)
         weather.update_weather()
         # Weather info on the Clock page.
         minipanel = QTempMiniPanel((5, 100), weather, parent=widget)
@@ -766,9 +813,8 @@ if __name__ == '__main__':
         weather.weather_updated.connect(icon.update)
         widget.show()
     else:
-        weather = QWeather()
+        weather = QWeather(debug=args.debug, sensors=sensors)
         weather.resize(800, 460)
-        weather.debug = args.debug
         weather.show()
 
     sys.exit(app.exec_())

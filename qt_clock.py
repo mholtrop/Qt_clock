@@ -17,6 +17,7 @@ from qtpy.QtWidgets import QApplication
 from qtpy.QtCore import QFile, QJsonDocument
 
 from clock_widget import Clock_widget
+from weather import parse_sensors
 import qt_clock_rc
 
 import signal
@@ -66,13 +67,16 @@ if __name__ == '__main__':
     parser.add_argument("--style", "-s", type=str, help="Use specified style sheet.", default=None)
     parser.add_argument("--frameless", "-fl", action="store_true", help="Make a frameless window.")
     parser.add_argument("--web", action="store_true", help="Make get moon from web.")
+    parser.add_argument("--sensor", action="append", default=[], metavar="MAC=role",
+                        help="SensorPush sensor MAC address and role (inside, outside, closet). Repeatable.")
 
     args = parser.parse_args(sys.argv[1:])
 
     if args.debug:
         print("Debug flag is set to:", args.debug)
 
-    clock = Clock_widget(args.frameless, web=args.web, debug=args.debug)
+    clock = Clock_widget(args.frameless, web=args.web, debug=args.debug,
+                         sensors=parse_sensors(args.sensor))
 
     file = None
     if args.style is None:

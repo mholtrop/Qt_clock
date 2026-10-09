@@ -20,12 +20,13 @@ from tides import QHiLoTide
 
 class Clock_widget(QMainWindow):
 
-    def __init__(self, frameless=False, web=False, debug=0):
+    def __init__(self, frameless=False, web=False, debug=0, sensors=None):
         super(Clock_widget, self).__init__()
 
         self.debug = debug
         self.frameless = frameless
         self.web = web
+        self.sensors = sensors
         self.analog = None
         self.bedtime = QTime(20, 15, 00)
         self.bedtime_grace_period = 10
@@ -78,7 +79,7 @@ class Clock_widget(QMainWindow):
         self.tabWidget.addTab(self.clock, "")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.clock), "Clock")
 
-        self.weather = QWeather(parent=None, debug=self.debug)
+        self.weather = QWeather(parent=None, debug=self.debug, sensors=self.sensors)
         self.tabWidget.addTab(self.weather, "")
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.weather), "Weather")
 
